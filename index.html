@@ -7,56 +7,127 @@
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     body{font-family:'SF Mono',Monaco,monospace;background:#0a0a0a;color:#e0e0e0;min-height:100vh}
-    #gate{padding:40px 20px;max-width:600px;margin:0 auto}
-    .status{font-size:11px;color:#666;margin:4px 0}
-    .status.pass{color:#0f0}
-    .status.fail{color:#f00}
-    .status.warn{color:#ff0}
+    #gate{padding:20px;max-width:700px;margin:0 auto}
+    h1{font-size:18px;color:#fff;margin-bottom:20px;text-align:center}
+    .layer{margin:15px 0;padding:10px;background:#111;border:1px solid #222}
+    .layer-title{font-size:11px;color:#666;margin-bottom:8px;text-transform:uppercase}
+    .check{display:flex;justify-content:space-between;padding:4px 0;font-size:11px;border-bottom:1px solid #1a1a1a}
+    .check:last-child{border:none}
+    .check-name{color:#888}
+    .check-status{font-weight:bold}
+    .check-status.pass{color:#0f0}
+    .check-status.fail{color:#f00}
+    .check-status.warn{color:#ff0}
+    .check-status.wait{color:#666}
+    .check-status.run{color:#00f}
+    .check-detail{font-size:9px;color:#555;margin-left:10px}
+    .pow-container{text-align:center;padding:20px}
+    .pow-progress{width:100%;height:4px;background:#222;margin:10px 0}
+    .pow-bar{height:100%;background:#0f0;width:0%;transition:width 0.1s}
+    .captcha-container{text-align:center;padding:20px}
+    .captcha-box{display:inline-block;padding:15px 30px;background:#111;border:2px solid #333;cursor:pointer;transition:all 0.2s}
+    .captcha-box:hover{border-color:#0f0}
+    .captcha-box.verified{border-color:#0f0;background:#0f0;color:#000}
+    .summary{margin-top:20px;padding:15px;background:#0a0a0a;border:2px solid #333}
+    .summary.pass{border-color:#0f0}
+    .summary-score{font-size:24px;color:#0f0;text-align:center}
     #app{display:none}
-    .loader{border:2px solid #333;border-top:2px solid #0f0;border-radius:50%;width:20px;height:20px;animation:spin 1s linear infinite;margin:20px auto}
-    @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+    .hidden{display:none}
   </style>
 </head>
 <body>
-  <!-- Gate: Runs first, decides what to load -->
   <div id="gate">
-    <div class="loader"></div>
-    <div id="status"></div>
+    <h1>⬡ squatch.cc</h1>
+
+    <!-- Layer 1: Instant -->
+    <div class="layer" id="layer1">
+      <div class="layer-title">Layer 1: Environment</div>
+      <div class="check" id="g-automation"><span class="check-name">Automation Detection</span><span class="check-status wait">...</span></div>
+      <div class="check" id="g-headless"><span class="check-name">Headless Browser</span><span class="check-status wait">...</span></div>
+      <div class="check" id="g-devtools"><span class="check-name">DevTools Detection</span><span class="check-status wait">...</span></div>
+      <div class="check" id="g-permissions"><span class="check-name">Permission APIs</span><span class="check-status wait">...</span></div>
+    </div>
+
+    <!-- Layer 2: Fingerprint -->
+    <div class="layer" id="layer2">
+      <div class="layer-title">Layer 2: Fingerprint</div>
+      <div class="check" id="g-canvas"><span class="check-name">Canvas Integrity</span><span class="check-status wait">...</span></div>
+      <div class="check" id="g-webgl"><span class="check-name">WebGL Renderer</span><span class="check-status wait">...</span></div>
+      <div class="check" id="g-audio"><span class="check-name">Audio Context</span><span class="check-status wait">...</span></div>
+      <div class="check" id="g-fonts"><span class="check-name">Font Enumeration</span><span class="check-status wait">...</span></div>
+      <div class="check" id="g-screen"><span class="check-name">Screen Metrics</span><span class="check-status wait">...</span></div>
+      <div class="check" id="g-hardware"><span class="check-name">Hardware Profile</span><span class="check-status wait">...</span></div>
+    </div>
+
+    <!-- Layer 3: Behavioral -->
+    <div class="layer" id="layer3">
+      <div class="layer-title">Layer 3: Behavioral</div>
+      <div class="check" id="g-timing"><span class="check-name">Timing Variance</span><span class="check-status wait">...</span></div>
+      <div class="check" id="g-math"><span class="check-name">Math Precision</span><span class="check-status wait">...</span></div>
+      <div class="check" id="g-memory"><span class="check-name">Memory Pressure</span><span class="check-status wait">...</span></div>
+      <div class="check" id="g-perf"><span class="check-name">Performance API</span><span class="check-status wait">...</span></div>
+    </div>
+
+    <!-- Layer 4: Interactive -->
+    <div class="layer" id="layer4">
+      <div class="layer-title">Layer 4: Interactive</div>
+      <div class="check" id="g-pow"><span class="check-name">Proof of Work</span><span class="check-status wait">...</span></div>
+      <div class="pow-container hidden" id="pow-ui">
+        <div>Computing challenge...</div>
+        <div class="pow-progress"><div class="pow-bar" id="pow-bar"></div></div>
+        <div id="pow-status" style="font-size:10px;color:#666"></div>
+      </div>
+      <div class="check" id="g-captcha"><span class="check-name">Human Verification</span><span class="check-status wait">...</span></div>
+      <div class="captcha-container hidden" id="captcha-ui">
+        <div class="captcha-box" id="captcha-box">
+          <span id="captcha-text">Click to verify</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="summary hidden" id="summary">
+      <div class="summary-score" id="final-score">--</div>
+      <div style="text-align:center;font-size:11px;color:#666;margin-top:10px" id="final-detail"></div>
+    </div>
   </div>
 
-  <!-- App: Only loaded if gate passes -->
   <div id="app"></div>
 
   <script type="module">
     // =========================================================================
-    // VECTOR GATE BOOTSTRAP
-    // Pure client-side. Attest but don't exclude. Control the unveiling.
+    // VECTOR GATE v2 - Comprehensive Client-Side Verification
     // =========================================================================
 
     const state = {
-      vector: new Float32Array(64),
-      gates: [],
-      organic: 0,
-      fingerprint: null,
+      vector: new Float32Array(128), // Larger vector for more signals
+      vectorIdx: 0,
+      gates: {},
       start: performance.now()
     };
 
-    const statusEl = document.getElementById('status');
-    const gateEl = document.getElementById('gate');
-    const appEl = document.getElementById('app');
-
-    function log(msg, type = 'info') {
-      const div = document.createElement('div');
-      div.className = 'status ' + type;
-      div.textContent = `[${(performance.now() - state.start).toFixed(0)}ms] ${msg}`;
-      statusEl.appendChild(div);
-      state.gates.push({ msg, type, time: performance.now() - state.start });
+    function setGate(id, status, detail = '') {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const statusEl = el.querySelector('.check-status');
+      statusEl.className = 'check-status ' + status;
+      statusEl.textContent = status.toUpperCase();
+      if (detail) {
+        let detailEl = el.querySelector('.check-detail');
+        if (!detailEl) {
+          detailEl = document.createElement('span');
+          detailEl.className = 'check-detail';
+          el.appendChild(detailEl);
+        }
+        detailEl.textContent = detail;
+      }
+      state.gates[id] = { status, detail };
     }
 
-    function addToVector(data, offset) {
+    function addVector(data) {
       const str = String(data);
-      for (let i = 0; i < 8 && offset + i < 64; i++) {
-        state.vector[offset + i] += (str.charCodeAt(i % str.length) || 0) / 255;
+      for (let i = 0; i < 8 && state.vectorIdx < 128; i++) {
+        state.vector[state.vectorIdx++] = (str.charCodeAt(i % str.length) || 0) / 255;
       }
     }
 
@@ -67,179 +138,463 @@
     }
 
     // =========================================================================
-    // GATE CHECKS
+    // LAYER 1: ENVIRONMENT (Instant)
     // =========================================================================
 
-    async function runGates() {
-      // 1. Automation detection
+    async function layer1() {
+      // 1.1 Automation Detection
+      setGate('g-automation', 'run');
       const auto = {
         webdriver: navigator.webdriver,
-        phantom: window._phantom || window.callPhantom,
-        selenium: document.__selenium_unwrapped,
-        nightmare: window.__nightmare
+        phantom: !!(window.callPhantom || window._phantom),
+        nightmare: !!window.__nightmare,
+        selenium: !!(document.__selenium_unwrapped || document.__webdriver_evaluate || document.__webdriver_script_fn),
+        puppeteer: !!(window.__puppeteer_evaluation_script__),
+        playwright: !!window._playwrightBinding,
+        cdc: Object.keys(window).some(k => k.match(/^cdc_|^_cdc/)),
       };
-      const autoDetected = Object.values(auto).some(v => v);
-      log(`Automation: ${autoDetected ? 'DETECTED' : 'clean'}`, autoDetected ? 'warn' : 'pass');
-      addToVector(JSON.stringify(auto), 0);
+      const autoDetected = Object.values(auto).filter(Boolean);
+      if (autoDetected.length > 0) {
+        setGate('g-automation', 'fail', Object.keys(auto).filter(k => auto[k]).join(', '));
+      } else {
+        setGate('g-automation', 'pass', 'No frameworks detected');
+      }
+      addVector(JSON.stringify(auto));
 
-      // 2. Canvas integrity
-      let canvasOk = false;
+      // 1.2 Headless Detection
+      setGate('g-headless', 'run');
+      const headless = {
+        userAgent: /HeadlessChrome|PhantomJS/i.test(navigator.userAgent),
+        webglVendor: false, // Will check in layer 2
+        plugins: navigator.plugins.length === 0,
+        languages: !navigator.languages || navigator.languages.length === 0,
+        permissions: !navigator.permissions,
+        notificationDenied: false,
+      };
+      try {
+        const perm = await navigator.permissions.query({ name: 'notifications' });
+        headless.notificationDenied = perm.state === 'denied';
+      } catch (e) {}
+
+      const headlessScore = Object.values(headless).filter(Boolean).length;
+      if (headlessScore >= 3) {
+        setGate('g-headless', 'fail', `${headlessScore} indicators`);
+      } else if (headlessScore >= 1) {
+        setGate('g-headless', 'warn', `${headlessScore} indicators`);
+      } else {
+        setGate('g-headless', 'pass', 'Normal browser');
+      }
+      addVector(headlessScore);
+
+      // 1.3 DevTools Detection
+      setGate('g-devtools', 'run');
+      let devtools = false;
+      const threshold = 160;
+      if (window.outerWidth - window.innerWidth > threshold ||
+          window.outerHeight - window.innerHeight > threshold) {
+        devtools = true;
+      }
+      // Firebug detection
+      if (window.Firebug?.chrome?.isInitialized) devtools = true;
+      setGate('g-devtools', devtools ? 'warn' : 'pass', devtools ? 'Possibly open' : 'Not detected');
+      addVector(devtools ? 1 : 0);
+
+      // 1.4 Permission APIs
+      setGate('g-permissions', 'run');
+      const apis = {
+        permissions: !!navigator.permissions,
+        geolocation: !!navigator.geolocation,
+        notifications: typeof Notification !== 'undefined',
+        mediaDevices: !!navigator.mediaDevices,
+        bluetooth: !!navigator.bluetooth,
+        usb: !!navigator.usb,
+        serial: !!navigator.serial,
+        storage: !!navigator.storage,
+      };
+      const apiCount = Object.values(apis).filter(Boolean).length;
+      setGate('g-permissions', apiCount >= 5 ? 'pass' : 'warn', `${apiCount}/8 APIs`);
+      addVector(apiCount);
+    }
+
+    // =========================================================================
+    // LAYER 2: FINGERPRINT (~50ms)
+    // =========================================================================
+
+    async function layer2() {
+      // 2.1 Canvas Integrity
+      setGate('g-canvas', 'run');
       try {
         const c = document.createElement('canvas');
-        c.width = 200; c.height = 50;
+        c.width = 280; c.height = 60;
         const ctx = c.getContext('2d');
+
+        // Complex drawing for better fingerprint
         ctx.fillStyle = '#f60';
-        ctx.fillRect(0, 0, 200, 50);
+        ctx.fillRect(100, 1, 62, 20);
         ctx.fillStyle = '#069';
-        ctx.font = '14px Arial';
-        ctx.fillText('squatch.cc', 10, 30);
+        ctx.font = '11pt Arial';
+        ctx.fillText('squatch.cc Ωαβγ', 2, 15);
+        ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+        ctx.fillText('squatch.cc Ωαβγ', 4, 17);
+
+        // Add curves
+        ctx.beginPath();
+        ctx.arc(50, 50, 50, 0, Math.PI * 2);
+        ctx.stroke();
+
         const h1 = await hash(c.toDataURL());
-        ctx.clearRect(0, 0, 200, 50);
+
+        // Redraw and compare
+        ctx.clearRect(0, 0, 280, 60);
         ctx.fillStyle = '#f60';
-        ctx.fillRect(0, 0, 200, 50);
+        ctx.fillRect(100, 1, 62, 20);
         ctx.fillStyle = '#069';
-        ctx.fillText('squatch.cc', 10, 30);
+        ctx.fillText('squatch.cc Ωαβγ', 2, 15);
+        ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+        ctx.fillText('squatch.cc Ωαβγ', 4, 17);
+        ctx.beginPath();
+        ctx.arc(50, 50, 50, 0, Math.PI * 2);
+        ctx.stroke();
+
         const h2 = await hash(c.toDataURL());
-        canvasOk = h1 === h2;
-        log(`Canvas: ${canvasOk ? 'consistent' : 'inconsistent'}`, canvasOk ? 'pass' : 'fail');
-        addToVector(h1, 8);
+
+        if (h1 === h2) {
+          setGate('g-canvas', 'pass', h1.slice(0, 12));
+        } else {
+          setGate('g-canvas', 'fail', 'Inconsistent');
+        }
+        addVector(h1);
       } catch (e) {
-        log(`Canvas: blocked`, 'warn');
+        setGate('g-canvas', 'warn', 'Blocked');
+        addVector('blocked');
       }
 
-      // 3. WebGL
-      let webglOk = false;
+      // 2.2 WebGL
+      setGate('g-webgl', 'run');
       try {
-        const gl = document.createElement('canvas').getContext('webgl');
+        const c = document.createElement('canvas');
+        const gl = c.getContext('webgl') || c.getContext('experimental-webgl');
         const dbg = gl?.getExtension('WEBGL_debug_renderer_info');
-        const renderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : 'unknown';
-        const suspicious = ['swiftshader', 'llvmpipe', 'virtualbox'].some(s => renderer.toLowerCase().includes(s));
-        webglOk = !suspicious && renderer !== 'unknown';
-        log(`WebGL: ${renderer.slice(0, 40)}`, webglOk ? 'pass' : 'warn');
-        addToVector(renderer, 16);
+        const vendor = dbg ? gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL) : gl?.getParameter(gl.VENDOR);
+        const renderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl?.getParameter(gl.RENDERER);
+
+        const suspicious = ['swiftshader', 'llvmpipe', 'mesa', 'virtualbox', 'vmware'].some(
+          s => (renderer || '').toLowerCase().includes(s)
+        );
+
+        if (!renderer) {
+          setGate('g-webgl', 'warn', 'Unavailable');
+        } else if (suspicious) {
+          setGate('g-webgl', 'warn', renderer.slice(0, 30));
+        } else {
+          setGate('g-webgl', 'pass', renderer.slice(0, 30));
+        }
+        addVector(renderer || 'none');
       } catch (e) {
-        log(`WebGL: unavailable`, 'warn');
+        setGate('g-webgl', 'warn', 'Error');
       }
 
-      // 4. Screen metrics
+      // 2.3 Audio Context Fingerprint
+      setGate('g-audio', 'run');
+      try {
+        const ac = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ac.createOscillator();
+        const analyser = ac.createAnalyser();
+        const gain = ac.createGain();
+        const processor = ac.createScriptProcessor(4096, 1, 1);
+
+        gain.gain.value = 0;
+        osc.type = 'triangle';
+        osc.frequency.value = 10000;
+
+        osc.connect(analyser);
+        analyser.connect(processor);
+        processor.connect(gain);
+        gain.connect(ac.destination);
+
+        osc.start(0);
+
+        const audioData = new Float32Array(analyser.frequencyBinCount);
+        analyser.getFloatFrequencyData(audioData);
+
+        const audioHash = await hash(audioData.slice(0, 50).toString());
+
+        osc.stop();
+        ac.close();
+
+        setGate('g-audio', 'pass', audioHash.slice(0, 12));
+        addVector(audioHash);
+      } catch (e) {
+        setGate('g-audio', 'warn', 'Unavailable');
+        addVector('no-audio');
+      }
+
+      // 2.4 Font Enumeration
+      setGate('g-fonts', 'run');
+      const testFonts = [
+        'Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana',
+        'Courier New', 'Comic Sans MS', 'Impact', 'Trebuchet MS', 'Palatino',
+        'Monaco', 'Menlo', 'Consolas', 'Lucida Console', 'SF Mono'
+      ];
+      const baseFonts = ['monospace', 'sans-serif', 'serif'];
+      const testString = 'mmmmmmmmmmlli';
+      const testSize = '72px';
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      function getWidth(font) {
+        ctx.font = `${testSize} ${font}`;
+        return ctx.measureText(testString).width;
+      }
+
+      const baseWidths = baseFonts.map(f => getWidth(f));
+      const detected = testFonts.filter(font => {
+        return baseFonts.some((base, i) => getWidth(`'${font}', ${base}`) !== baseWidths[i]);
+      });
+
+      setGate('g-fonts', 'pass', `${detected.length}/${testFonts.length} fonts`);
+      addVector(detected.join(','));
+
+      // 2.5 Screen Metrics
+      setGate('g-screen', 'run');
       const screen = {
         w: window.screen.width,
         h: window.screen.height,
-        dpr: window.devicePixelRatio,
-        depth: window.screen.colorDepth
+        availW: window.screen.availWidth,
+        availH: window.screen.availHeight,
+        colorDepth: window.screen.colorDepth,
+        pixelRatio: window.devicePixelRatio,
+        orientation: window.screen.orientation?.type || 'unknown'
       };
-      const screenOk = screen.w > 0 && screen.h > 0 && screen.dpr > 0;
-      log(`Screen: ${screen.w}x${screen.h} @${screen.dpr}x`, screenOk ? 'pass' : 'fail');
-      addToVector(JSON.stringify(screen), 24);
+      const screenValid = screen.w > 0 && screen.h > 0 && screen.colorDepth >= 24;
+      setGate('g-screen', screenValid ? 'pass' : 'warn', `${screen.w}x${screen.h}@${screen.pixelRatio}x`);
+      addVector(JSON.stringify(screen));
 
-      // 5. Timing variance
+      // 2.6 Hardware Profile
+      setGate('g-hardware', 'run');
+      const hw = {
+        cores: navigator.hardwareConcurrency || 0,
+        memory: navigator.deviceMemory || 0,
+        touch: navigator.maxTouchPoints || 0,
+        connection: navigator.connection?.effectiveType || 'unknown'
+      };
+      setGate('g-hardware', 'pass', `${hw.cores} cores, ${hw.memory}GB`);
+      addVector(JSON.stringify(hw));
+    }
+
+    // =========================================================================
+    // LAYER 3: BEHAVIORAL (~500ms)
+    // =========================================================================
+
+    async function layer3() {
+      // 3.1 Timing Variance
+      setGate('g-timing', 'run');
       const timings = [];
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 20; i++) {
         const s = performance.now();
-        let x = 0; for (let j = 0; j < 5000; j++) x += Math.random();
+        let x = 0; for (let j = 0; j < 10000; j++) x += Math.random();
         timings.push(performance.now() - s);
       }
       const mean = timings.reduce((a, b) => a + b) / timings.length;
       const std = Math.sqrt(timings.reduce((s, t) => s + (t - mean) ** 2, 0) / timings.length);
       const cv = (std / mean) * 100;
-      const timingOk = cv > 1 && cv < 100;
-      log(`Timing CV: ${cv.toFixed(1)}%`, timingOk ? 'pass' : 'warn');
-      addToVector(cv.toFixed(4), 32);
 
-      // 6. Storage APIs
-      let storageCount = 0;
-      try { localStorage.setItem('_t', '1'); localStorage.removeItem('_t'); storageCount++; } catch (e) {}
-      try { sessionStorage.setItem('_t', '1'); sessionStorage.removeItem('_t'); storageCount++; } catch (e) {}
-      if (window.indexedDB) storageCount++;
-      if (navigator.cookieEnabled) storageCount++;
-      log(`Storage: ${storageCount}/4 APIs`, storageCount >= 2 ? 'pass' : 'warn');
-      addToVector(storageCount.toString(), 40);
+      if (cv < 1) {
+        setGate('g-timing', 'warn', `CV: ${cv.toFixed(1)}% (too stable)`);
+      } else if (cv > 100) {
+        setGate('g-timing', 'warn', `CV: ${cv.toFixed(1)}% (unstable)`);
+      } else {
+        setGate('g-timing', 'pass', `CV: ${cv.toFixed(1)}%`);
+      }
+      addVector(cv);
 
-      // 7. Browser features
-      const features = {
-        cores: navigator.hardwareConcurrency || 0,
-        memory: navigator.deviceMemory || 0,
-        touch: navigator.maxTouchPoints || 0,
-        lang: navigator.language
+      // 3.2 Math Precision
+      setGate('g-math', 'run');
+      const mathTests = {
+        sin: Math.sin(1),
+        cos: Math.cos(1),
+        tan: Math.tan(1),
+        log: Math.log(10),
+        exp: Math.exp(1),
+        sqrt: Math.sqrt(2),
+        pow: Math.pow(Math.PI, Math.E)
       };
-      log(`Features: ${features.cores} cores, ${features.memory}GB, ${features.lang}`, 'pass');
-      addToVector(JSON.stringify(features), 48);
+      const mathHash = await hash(JSON.stringify(mathTests));
+      setGate('g-math', 'pass', mathHash.slice(0, 12));
+      addVector(mathHash);
 
-      // 8. Final fingerprint
-      let norm = 0;
-      for (let i = 0; i < 64; i++) norm += state.vector[i] ** 2;
-      norm = Math.sqrt(norm) + 1e-8;
-      for (let i = 0; i < 64; i++) state.vector[i] /= norm;
+      // 3.3 Memory Pressure
+      setGate('g-memory', 'run');
+      try {
+        const arr = [];
+        const start = performance.now();
+        for (let i = 0; i < 1000; i++) {
+          arr.push(new ArrayBuffer(1024)); // 1KB each
+        }
+        const allocTime = performance.now() - start;
+        arr.length = 0; // Free
 
-      state.fingerprint = await hash(state.vector.toString());
-      log(`Fingerprint: ${state.fingerprint.slice(0, 16)}...`, 'pass');
+        if (allocTime < 1) {
+          setGate('g-memory', 'warn', `${allocTime.toFixed(2)}ms (too fast)`);
+        } else {
+          setGate('g-memory', 'pass', `${allocTime.toFixed(2)}ms`);
+        }
+        addVector(allocTime);
+      } catch (e) {
+        setGate('g-memory', 'warn', 'Test failed');
+      }
 
-      // Calculate organic score
-      const passed = state.gates.filter(g => g.type === 'pass').length;
-      const total = state.gates.length;
-      state.organic = passed / total;
-      log(`Organic: ${(state.organic * 100).toFixed(0)}%`, state.organic >= 0.7 ? 'pass' : 'warn');
-
-      return state;
+      // 3.4 Performance API
+      setGate('g-perf', 'run');
+      const perf = {
+        timing: !!performance.timing,
+        now: typeof performance.now === 'function',
+        mark: typeof performance.mark === 'function',
+        measure: typeof performance.measure === 'function',
+        getEntries: typeof performance.getEntries === 'function',
+        memory: !!performance.memory
+      };
+      const perfCount = Object.values(perf).filter(Boolean).length;
+      setGate('g-perf', perfCount >= 4 ? 'pass' : 'warn', `${perfCount}/6 features`);
+      addVector(perfCount);
     }
 
     // =========================================================================
-    // CONDITIONAL LOADING
+    // LAYER 4: INTERACTIVE
     // =========================================================================
 
-    async function loadApp() {
-      log('Loading application...', 'info');
+    async function layer4() {
+      // 4.1 Proof of Work
+      setGate('g-pow', 'run');
+      document.getElementById('pow-ui').classList.remove('hidden');
+
+      const challenge = await hash(Date.now().toString() + Math.random());
+      const difficulty = 4; // First N chars must be zeros
+      const target = '0'.repeat(difficulty);
+
+      let nonce = 0;
+      let found = false;
+      const maxIterations = 1000000;
+      const batchSize = 10000;
+
+      while (!found && nonce < maxIterations) {
+        for (let i = 0; i < batchSize && !found; i++) {
+          const attempt = await hash(challenge + nonce);
+          if (attempt.startsWith(target)) {
+            found = true;
+            setGate('g-pow', 'pass', `nonce: ${nonce}`);
+          }
+          nonce++;
+        }
+        document.getElementById('pow-bar').style.width = (nonce / maxIterations * 100) + '%';
+        document.getElementById('pow-status').textContent = `${nonce.toLocaleString()} hashes`;
+        await new Promise(r => setTimeout(r, 0)); // Yield to UI
+      }
+
+      if (!found) {
+        setGate('g-pow', 'warn', 'Timeout');
+      }
+      addVector(nonce);
+      document.getElementById('pow-ui').classList.add('hidden');
+
+      // 4.2 Human Verification (Click Captcha)
+      setGate('g-captcha', 'run');
+      document.getElementById('captcha-ui').classList.remove('hidden');
+
+      await new Promise(resolve => {
+        const box = document.getElementById('captcha-box');
+        let clicks = 0;
+        let lastClick = 0;
+        const clickTimes = [];
+
+        box.onclick = (e) => {
+          const now = performance.now();
+          if (lastClick > 0) {
+            clickTimes.push(now - lastClick);
+          }
+          lastClick = now;
+          clicks++;
+
+          if (clicks >= 3) {
+            // Analyze click timing
+            const avgTime = clickTimes.reduce((a, b) => a + b, 0) / clickTimes.length;
+            const variance = clickTimes.reduce((s, t) => s + (t - avgTime) ** 2, 0) / clickTimes.length;
+
+            // Bots click too regularly or too fast
+            if (avgTime < 50 || variance < 100) {
+              setGate('g-captcha', 'warn', 'Suspicious pattern');
+            } else {
+              setGate('g-captcha', 'pass', 'Verified');
+              box.classList.add('verified');
+              document.getElementById('captcha-text').textContent = '✓ Verified';
+            }
+            addVector(avgTime + ':' + variance);
+            resolve();
+          } else {
+            document.getElementById('captcha-text').textContent = `Click ${3 - clicks} more times`;
+          }
+        };
+      });
+
+      document.getElementById('captcha-ui').classList.add('hidden');
+    }
+
+    // =========================================================================
+    // MAIN
+    // =========================================================================
+
+    async function runAllGates() {
+      await layer1();
+      await layer2();
+      await layer3();
+      await layer4();
+
+      // Normalize vector
+      let norm = 0;
+      for (let i = 0; i < 128; i++) norm += state.vector[i] ** 2;
+      norm = Math.sqrt(norm) + 1e-8;
+      for (let i = 0; i < 128; i++) state.vector[i] /= norm;
+
+      // Calculate score
+      const passed = Object.values(state.gates).filter(g => g.status === 'pass').length;
+      const warned = Object.values(state.gates).filter(g => g.status === 'warn').length;
+      const failed = Object.values(state.gates).filter(g => g.status === 'fail').length;
+      const total = Object.keys(state.gates).length;
+
+      const score = ((passed + warned * 0.5) / total * 100).toFixed(0);
+
+      // Show summary
+      const summary = document.getElementById('summary');
+      summary.classList.remove('hidden');
+      if (score >= 70) summary.classList.add('pass');
+      document.getElementById('final-score').textContent = `${score}%`;
+      document.getElementById('final-detail').textContent =
+        `${passed} passed, ${warned} warnings, ${failed} failed`;
 
       // Store attestation
+      const fingerprint = await hash(state.vector.toString());
       sessionStorage.setItem('squatch_attestation', JSON.stringify({
-        fingerprint: state.fingerprint,
-        organic: state.organic,
-        gates: state.gates.length,
-        passed: state.gates.filter(g => g.type === 'pass').length,
+        fingerprint,
+        score: parseInt(score),
+        passed, warned, failed,
+        gates: state.gates,
         timestamp: Date.now()
       }));
 
-      // Hide gate, show app
-      gateEl.querySelector('.loader').style.display = 'none';
-
-      // Dynamically import the main app
-      try {
-        const { mount } = await import('./app.js');
-        appEl.style.display = 'block';
-        mount(appEl, state);
-        log('Application mounted', 'pass');
-      } catch (e) {
-        log(`App load failed: ${e.message}`, 'fail');
-        // Fallback: render basic content
-        appEl.style.display = 'block';
-        appEl.innerHTML = `
-          <div style="padding:40px;max-width:800px;margin:0 auto">
-            <h1 style="color:#fff;font-size:24px;margin-bottom:20px">squatch.cc</h1>
-            <p style="color:#888;margin-bottom:20px">Vector Fabric — Decentralized reasoning</p>
-            <div style="background:#111;border:1px solid #333;padding:20px;font-size:11px">
-              <div>Fingerprint: ${state.fingerprint}</div>
-              <div>Organic: ${(state.organic * 100).toFixed(0)}%</div>
-              <div>Gates: ${state.gates.filter(g => g.type === 'pass').length}/${state.gates.length} passed</div>
-            </div>
-          </div>
-        `;
-      }
+      // Load app after delay
+      setTimeout(async () => {
+        try {
+          const { mount } = await import('./app.js');
+          document.getElementById('app').style.display = 'block';
+          mount(document.getElementById('app'), { ...state, score, fingerprint });
+        } catch (e) {
+          console.error('App load failed:', e);
+        }
+      }, 1000);
     }
 
-    // =========================================================================
-    // BOOTSTRAP
-    // =========================================================================
-
-    async function bootstrap() {
-      log('Vector gate initializing...', 'info');
-
-      await runGates();
-
-      // Always load app - we attest but don't exclude
-      await loadApp();
-    }
-
-    bootstrap().catch(e => log(`Fatal: ${e.message}`, 'fail'));
+    runAllGates().catch(console.error);
   </script>
 </body>
 </html>
