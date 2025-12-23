@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gate Test Vectors</title>
+<style>
+:root {
+  --pass: #0f0;
+  --fail: #f00;
+  --wait: #ff0;
+  --bg: #0a0a0a;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { height: 400vh; }
+body { background: var(--bg); color: #888; font: 12px/1.6 'SF Mono', Monaco, monospace; }
+
+/* Test Panel - Fixed */
+.panel {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  background: #111;
+  border: 1px solid #222;
+  padding: 15px;
+  z-index: 1000;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+h1 { font-size: 14px; color: #fff; margin-bottom: 15px; font-weight: 500; }
+h2 { font-size: 11px; color: #666; margin: 15px 0 8px; text-transform: uppercase; letter-spacing: 1px; }
+
+.test-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.test {
+  background: #0a0a0a;
+  border: 1px solid #222;
+  padding: 10px;
+}
+
+.test-name { color: #fff; font-size: 11px; margin-bottom: 6px; }
+.test-status { font-size: 10px; display: flex; align-items: center; gap: 6px; }
+.test-status::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--wait);
+}
+.test.pass .test-status::before { background: var(--pass); }
+.test.fail .test-status::before { background: var(--fail); }
+.test-detail { font-size: 9px; color: #555; margin-top: 4px; }
+
+/* Gate Test Area */
+.gate-area {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 20px;
+  z-index: 100;
+}
+
+.gate {
+  width: 60px;
+  height: 60px;
+  background: #111;
+  border: 1px solid #222;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  color: #333;
+  transition: all 0.3s;
+  cursor: pointer;
+}
+
+/* Gate 0: TIME */
+.gate.g0 {
+  animation: time-gate 0.3s 2s forwards;
+}
+@keyframes time-gate {
+  to { color: var(--pass); border-color: #0f04; }
+}
+
+/* Gate 1: HOVER */
+.gate.g1 { pointer-events: none; opacity: 0.3; }
+.gate.g0:hover ~ .gate.g1 { pointer-events: auto; opacity: 1; }
+.gate.g1:hover { color: var(--pass); border-color: #0f04; }
+
+/* Gate 2: CLICK */
+.gate.g2 { pointer-events: none; opacity: 0.3; }
+.gate.g1:hover ~ .gate.g2 { pointer-events: auto; opacity: 1; }
+.gate.g2:active { color: var(--pass); border-color: var(--pass); transform: scale(0.95); }
+
+/* Gate 3: SCROLL */
+.gate.g3 {
+  opacity: 0.3;
+  animation: scroll-gate linear both;
+  animation-timeline: scroll();
+}
+@keyframes scroll-gate {
+  70%, 100% { opacity: 1; color: var(--pass); border-color: #0f04; }
+}
+
+/* Scroll indicator */
+.scroll-depth {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: #333;
+}
+
+/* Timing visualization */
+.timing-bar {
+  height: 4px;
+  background: #222;
+  margin-top: 6px;
+  overflow: hidden;
+}
+.timing-fill {
+  height: 100%;
+  background: var(--pass);
+  width: 0;
+  transition: width 0.1s;
+}
+</style>
+</head>
+<body>
+
+<div class="panel">
+  <h1>Gate Test Vectors</h1>
+
+  <h2>Environment Detection</h2>
+  <div class="test-grid" id="env-tests"></div>
+
+  <h2>CSS Gate States</h2>
+  <div class="test-grid" id="css-tests"></div>
+
+  <h2>Timing Analysis</h2>
+  <div class="test-grid" id="timing-tests"></div>
+
+  <h2>Behavioral Signals</h2>
+  <div class="test-grid" id="behavior-tests"></div>
+
+  <h2>Attack Vector Detection</h2>
+  <div class="test-grid" id="attack-tests"></div>
+</div>
+
+<div class="gate-area">
+  <div class="gate g0">TIME<br>2s</div>
+  <div class="gate g1">HOVER</div>
+  <div class="gate g2">CLICK</div>
+  <div class="gate g3">SCROLL<br>70%</div>
+</div>
+
+<div class="scroll-depth">Scroll: <span id="scroll-pct">0</span>%</div>
+
+<script>
+// ============================================
+// TEST VECTORS
+// ============================================
+
+const tests = {
+  env: [],
+  css: [],
+  timing: [],
+  behavior: [],
+  attack: []
+};
+
+const state = {
+  loadTime: Date.now(),
+  firstInteraction: null,
+  mouseEvents: [],
+  scrollEvents: [],
+  keyEvents: [],
+  gatesPassed: { time: false, hover: false, click: false, scroll: false }
+};
+
+// ============================================
+// ENVIRONMENT TESTS
+// ============================================
+
+function runEnvTests() {
+  const t = [];
+
+  // Webdriver detection
+  t.push({
+    name: 'WebDriver',
+    pass: !navigator.webdriver,
+    detail: navigator.webdriver ? 'DETECTED' : 'Not present'
+  });
+
+  // Headless detection
+  const headless = /HeadlessChrome/i.test(navigator.userAgent);
+  t.push({
+    name: 'Headless Chrome',
+    pass: !headless,
+    detail: headless ? 'DETECTED' : 'Not present'
+  });
+
+  // Automation frameworks
+  const automation = !!(
+    window.callPhantom || window._phantom ||
+    window.__nightmare ||
+    document.__selenium_unwrapped ||
+    window.__puppeteer_evaluation_script__ ||
+    window._playwrightBinding
+  );
+  t.push({
+    name: 'Automation Framework',
+    pass: !automation,
+    detail: automation ? 'DETECTED' : 'Not present'
+  });
+
+  // Chrome DevTools Protocol
+  const cdc = Object.keys(window).some(k => /^cdc_|^_cdc/.test(k));
+  t.push({
+    name: 'CDP Variables',
+    pass: !cdc,
+    detail: cdc ? 'DETECTED' : 'Not present'
+  });
+
+  // DevTools open
+  const devtools = window.outerWidth - window.innerWidth > 160;
+  t.push({
+    name: 'DevTools Open',
+    pass: !devtools,
+    detail: devtools ? 'Likely open' : 'Closed'
+  });
+
+  // Bot user agent
+  const botUA = /bot|crawl|spider|slurp/i.test(navigator.userAgent);
+  t.push({
+    name: 'Bot User Agent',
+    pass: !botUA,
+    detail: botUA ? 'DETECTED' : 'Human UA'
+  });
+
+  // Permissions API
+  const hasPermissions = 'permissions' in navigator;
+  t.push({
+    name: 'Permissions API',
+    pass: hasPermissions,
+    detail: hasPermissions ? 'Available' : 'Missing'
+  });
+
+  // WebGL
+  const canvas = document.createElement('canvas');
+  const gl = canvas.getContext('webgl');
+  t.push({
+    name: 'WebGL Support',
+    pass: !!gl,
+    detail: gl ? gl.getParameter(gl.RENDERER).slice(0, 30) : 'No WebGL'
+  });
+
+  tests.env = t;
+  renderTests('env-tests', t);
+}
+
+// ============================================
+// CSS GATE TESTS
+// ============================================
+
+function runCSSTests() {
+  const t = [];
+  const root = document.documentElement;
+  const styles = getComputedStyle(root);
+
+  // Media queries
+  const mediaTests = [
+    ['hover: hover', matchMedia('(hover: hover)').matches],
+    ['pointer: fine', matchMedia('(pointer: fine)').matches],
+    ['prefers-color-scheme', matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'],
+    ['prefers-reduced-motion', !matchMedia('(prefers-reduced-motion: reduce)').matches],
+    ['min-resolution: 2dppx', matchMedia('(min-resolution: 2dppx)').matches],
+    ['color-gamut: p3', matchMedia('(color-gamut: p3)').matches]
+  ];
+
+  mediaTests.forEach(([name, value]) => {
+    t.push({
+      name: `@media ${name}`,
+      pass: value === true || typeof value === 'string',
+      detail: String(value)
+    });
+  });
+
+  // CSS animation support
+  t.push({
+    name: 'CSS Animations',
+    pass: 'animation' in document.body.style,
+    detail: 'animation' in document.body.style ? 'Supported' : 'Missing'
+  });
+
+  // Scroll timeline support
+  t.push({
+    name: 'Scroll Timeline',
+    pass: CSS.supports('animation-timeline: scroll()'),
+    detail: CSS.supports('animation-timeline: scroll()') ? 'Supported' : 'Missing'
+  });
+
+  tests.css = t;
+  renderTests('css-tests', t);
+}
+
+// ============================================
+// TIMING TESTS
+// ============================================
+
+function runTimingTests() {
+  const t = [];
+  const now = Date.now();
+  const elapsed = now - state.loadTime;
+
+  // Time since load
+  t.push({
+    name: 'Time on Page',
+    pass: elapsed > 2000,
+    detail: `${(elapsed / 1000).toFixed(1)}s (need 2s)`
+  });
+
+  // First interaction timing
+  if (state.firstInteraction) {
+    const interactionDelay = state.firstInteraction - state.loadTime;
+    t.push({
+      name: 'First Interaction',
+      pass: interactionDelay > 500,
+      detail: `${interactionDelay}ms after load`
+    });
+  } else {
+    t.push({
+      name: 'First Interaction',
+      pass: false,
+      detail: 'No interaction yet'
+    });
+  }
+
+  // Mouse event frequency
+  const mouseRate = state.mouseEvents.length / Math.max(1, elapsed / 1000);
+  t.push({
+    name: 'Mouse Event Rate',
+    pass: mouseRate > 0.5 && mouseRate < 100,
+    detail: `${mouseRate.toFixed(1)}/sec`
+  });
+
+  // Scroll depth
+  const scrollPct = Math.round((window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100) || 0;
+  t.push({
+    name: 'Scroll Depth',
+    pass: scrollPct > 70,
+    detail: `${scrollPct}% (need 70%)`
+  });
+
+  tests.timing = t;
+  renderTests('timing-tests', t);
+}
+
+// ============================================
+// BEHAVIORAL TESTS
+// ============================================
+
+function runBehaviorTests() {
+  const t = [];
+
+  // Mouse movement variance
+  if (state.mouseEvents.length > 10) {
+    const xs = state.mouseEvents.map(e => e.x);
+    const ys = state.mouseEvents.map(e => e.y);
+    const xVar = variance(xs);
+    const yVar = variance(ys);
+    const hasVariance = xVar > 100 && yVar > 100;
+    t.push({
+      name: 'Mouse Variance',
+      pass: hasVariance,
+      detail: `X:${Math.round(xVar)} Y:${Math.round(yVar)}`
+    });
+  } else {
+    t.push({
+      name: 'Mouse Variance',
+      pass: false,
+      detail: 'Need more data'
+    });
+  }
+
+  // Mouse velocity variance
+  if (state.mouseEvents.length > 5) {
+    const velocities = [];
+    for (let i = 1; i < state.mouseEvents.length; i++) {
+      const dx = state.mouseEvents[i].x - state.mouseEvents[i-1].x;
+      const dy = state.mouseEvents[i].y - state.mouseEvents[i-1].y;
+      const dt = state.mouseEvents[i].t - state.mouseEvents[i-1].t;
+      if (dt > 0) velocities.push(Math.sqrt(dx*dx + dy*dy) / dt);
+    }
+    const velVar = variance(velocities);
+    t.push({
+      name: 'Velocity Variance',
+      pass: velVar > 0.01,
+      detail: `${velVar.toFixed(4)}`
+    });
+  } else {
+    t.push({
+      name: 'Velocity Variance',
+      pass: false,
+      detail: 'Need more data'
+    });
+  }
+
+  // Scroll pattern
+  if (state.scrollEvents.length > 5) {
+    const scrollDeltas = [];
+    for (let i = 1; i < state.scrollEvents.length; i++) {
+      scrollDeltas.push(Math.abs(state.scrollEvents[i].y - state.scrollEvents[i-1].y));
+    }
+    const scrollVar = variance(scrollDeltas);
+    t.push({
+      name: 'Scroll Pattern',
+      pass: scrollVar > 10,
+      detail: `Variance: ${Math.round(scrollVar)}`
+    });
+  } else {
+    t.push({
+      name: 'Scroll Pattern',
+      pass: false,
+      detail: 'Need scroll data'
+    });
+  }
+
+  // Interaction count
+  const totalInteractions = state.mouseEvents.length + state.scrollEvents.length + state.keyEvents.length;
+  t.push({
+    name: 'Total Interactions',
+    pass: totalInteractions > 20,
+    detail: `${totalInteractions} events`
+  });
+
+  tests.behavior = t;
+  renderTests('behavior-tests', t);
+}
+
+// ============================================
+// ATTACK VECTOR TESTS
+// ============================================
+
+function runAttackTests() {
+  const t = [];
+
+  // Instant load scraping
+  const instantLoad = (Date.now() - state.loadTime) < 100;
+  t.push({
+    name: 'Instant Scrape',
+    pass: !instantLoad,
+    detail: instantLoad ? 'BLOCKED: Too fast' : 'Normal load'
+  });
+
+  // No interaction scraping
+  t.push({
+    name: 'Zero Interaction',
+    pass: state.firstInteraction !== null,
+    detail: state.firstInteraction ? 'Has interaction' : 'BLOCKED: No interaction'
+  });
+
+  // Straight-line mouse (robotic)
+  if (state.mouseEvents.length > 10) {
+    const angles = [];
+    for (let i = 2; i < state.mouseEvents.length; i++) {
+      const dx1 = state.mouseEvents[i-1].x - state.mouseEvents[i-2].x;
+      const dy1 = state.mouseEvents[i-1].y - state.mouseEvents[i-2].y;
+      const dx2 = state.mouseEvents[i].x - state.mouseEvents[i-1].x;
+      const dy2 = state.mouseEvents[i].y - state.mouseEvents[i-1].y;
+      const angle = Math.atan2(dy2, dx2) - Math.atan2(dy1, dx1);
+      angles.push(Math.abs(angle));
+    }
+    const avgAngleChange = angles.reduce((a,b) => a+b, 0) / angles.length;
+    const straightLine = avgAngleChange < 0.05;
+    t.push({
+      name: 'Robotic Mouse',
+      pass: !straightLine,
+      detail: straightLine ? 'BLOCKED: Too straight' : `Angle var: ${avgAngleChange.toFixed(3)}`
+    });
+  } else {
+    t.push({
+      name: 'Robotic Mouse',
+      pass: false,
+      detail: 'Need mouse data'
+    });
+  }
+
+  // Perfect timing (robotic)
+  if (state.mouseEvents.length > 5) {
+    const intervals = [];
+    for (let i = 1; i < Math.min(20, state.mouseEvents.length); i++) {
+      intervals.push(state.mouseEvents[i].t - state.mouseEvents[i-1].t);
+    }
+    const intervalVar = variance(intervals);
+    const perfectTiming = intervalVar < 1;
+    t.push({
+      name: 'Perfect Timing',
+      pass: !perfectTiming,
+      detail: perfectTiming ? 'BLOCKED: Too regular' : `Var: ${intervalVar.toFixed(1)}`
+    });
+  } else {
+    t.push({
+      name: 'Perfect Timing',
+      pass: false,
+      detail: 'Need timing data'
+    });
+  }
+
+  // Gates passed check
+  const gatesPassed = Object.values(state.gatesPassed).filter(Boolean).length;
+  t.push({
+    name: 'Gates Passed',
+    pass: gatesPassed >= 3,
+    detail: `${gatesPassed}/4 gates`
+  });
+
+  tests.attack = t;
+  renderTests('attack-tests', t);
+}
+
+// ============================================
+// UTILITIES
+// ============================================
+
+function variance(arr) {
+  if (arr.length === 0) return 0;
+  const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+  return arr.reduce((s, v) => s + (v - mean) ** 2, 0) / arr.length;
+}
+
+function renderTests(containerId, tests) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = tests.map(t => `
+    <div class="test ${t.pass ? 'pass' : 'fail'}">
+      <div class="test-name">${t.name}</div>
+      <div class="test-status">${t.pass ? 'PASS' : 'FAIL'}</div>
+      <div class="test-detail">${t.detail}</div>
+    </div>
+  `).join('');
+}
+
+// ============================================
+// EVENT LISTENERS
+// ============================================
+
+document.addEventListener('mousemove', (e) => {
+  if (!state.firstInteraction) state.firstInteraction = Date.now();
+  state.mouseEvents.push({ x: e.clientX, y: e.clientY, t: Date.now() });
+  if (state.mouseEvents.length > 100) state.mouseEvents.shift();
+});
+
+document.addEventListener('scroll', () => {
+  if (!state.firstInteraction) state.firstInteraction = Date.now();
+  state.scrollEvents.push({ y: window.scrollY, t: Date.now() });
+  if (state.scrollEvents.length > 50) state.scrollEvents.shift();
+
+  const pct = Math.round((window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100);
+  document.getElementById('scroll-pct').textContent = pct;
+  if (pct >= 70) state.gatesPassed.scroll = true;
+}, { passive: true });
+
+document.addEventListener('keydown', () => {
+  if (!state.firstInteraction) state.firstInteraction = Date.now();
+  state.keyEvents.push({ t: Date.now() });
+});
+
+// Gate tracking
+document.querySelector('.g0').addEventListener('mouseenter', () => {
+  state.gatesPassed.time = true;
+});
+
+document.querySelector('.g1').addEventListener('mouseenter', () => {
+  state.gatesPassed.hover = true;
+});
+
+document.querySelector('.g2').addEventListener('mousedown', () => {
+  state.gatesPassed.click = true;
+});
+
+// ============================================
+// MAIN LOOP
+// ============================================
+
+function update() {
+  runTimingTests();
+  runBehaviorTests();
+  runAttackTests();
+  requestAnimationFrame(update);
+}
+
+// Initial tests
+runEnvTests();
+runCSSTests();
+runTimingTests();
+runBehaviorTests();
+runAttackTests();
+
+// Start update loop
+update();
+
+// Time gate check
+setTimeout(() => {
+  state.gatesPassed.time = true;
+}, 2000);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Proof</title>
+<style>
+:root{--g:#0f0;--r:#f00;--y:#ff0}
+*{margin:0;padding:0;box-sizing:border-box}
+html{height:300vh}
+body{background:#000;font:13px system-ui;color:#888}
+
+/* Header */
+header{position:fixed;top:0;left:0;right:0;padding:15px 20px;background:#000;border-bottom:1px solid #111;z-index:100;display:flex;justify-content:space-between;align-items:center}
+.title{color:#fff;font-size:14px}
+.score{font-size:24px;font-weight:200;color:var(--y)}
+.score.pass{color:var(--g)}
+
+/* Gate Display */
+.gates{position:fixed;top:70px;left:20px;display:flex;flex-direction:column;gap:12px;z-index:100}
+.gate-row{display:flex;align-items:center;gap:10px}
+.gate-dot{width:10px;height:10px;border-radius:50%;background:#222;transition:all .3s}
+.gate-dot.active{background:var(--y);box-shadow:0 0 10px var(--y)}
+.gate-dot.pass{background:var(--g);box-shadow:0 0 10px var(--g)}
+.gate-label{font-size:11px;color:#444;width:80px}
+.gate-value{font-size:10px;color:#666}
+
+/* Interactive Gates */
+.gate-zone{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);display:flex;gap:15px;z-index:100}
+.gate-box{width:70px;height:70px;background:#0a0a0a;border:1px solid #1a1a1a;display:grid;place-items:center;transition:all .3s;cursor:pointer}
+.gate-box span{font-size:10px;color:#333;transition:color .3s;text-align:center;line-height:1.4}
+
+/* Gate 0: TIME */
+.g0{animation:g0 .3s 2s forwards}
+.g0 span{animation:g0-text .3s 2s forwards}
+@keyframes g0{to{border-color:#0f04}}
+@keyframes g0-text{to{color:var(--g)}}
+
+/* Gate 1: HOVER (requires g0) */
+.g1{pointer-events:none;opacity:.4}
+.g0:hover~.g1{pointer-events:auto;opacity:1}
+.g1:hover{border-color:#0f04}
+.g1:hover span{color:var(--g)}
+
+/* Gate 2: CLICK (requires g1) */
+.g2{pointer-events:none;opacity:.4}
+.g1:hover~.g2{pointer-events:auto;opacity:1}
+.g2:active{border-color:var(--g);transform:scale(.95)}
+.g2:active span{color:var(--g)}
+
+/* Gate 3: SCROLL */
+.g3{opacity:.4;animation:g3 linear forwards;animation-timeline:scroll()}
+.g3 span{animation:g3-text linear forwards;animation-timeline:scroll()}
+@keyframes g3{70%,100%{opacity:1;border-color:#0f04}}
+@keyframes g3-text{70%,100%{color:var(--g)}}
+
+/* Content */
+.content{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-size:48px;font-weight:200;color:#000;animation:content linear forwards;animation-timeline:scroll();pointer-events:none}
+@keyframes content{85%{color:#000}100%{color:var(--g)}}
+
+/* Scroll indicator */
+.scroll-bar{position:fixed;top:70px;right:20px;width:4px;height:200px;background:#111}
+.scroll-fill{width:100%;height:0%;background:var(--g);animation:scroll-fill linear forwards;animation-timeline:scroll()}
+@keyframes scroll-fill{to{height:100%}}
+
+/* Attack vectors blocked */
+.blocked{position:fixed;bottom:120px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--r);opacity:0;transition:opacity .3s}
+.blocked.show{opacity:1}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="title">Minimal Progressive Gate</span>
+  <span class="score" id="score">0%</span>
+</header>
+
+<div class="gates">
+  <div class="gate-row">
+    <div class="gate-dot" id="dot-time"></div>
+    <span class="gate-label">TIME</span>
+    <span class="gate-value" id="val-time">wait 2s</span>
+  </div>
+  <div class="gate-row">
+    <div class="gate-dot" id="dot-hover"></div>
+    <span class="gate-label">HOVER</span>
+    <span class="gate-value" id="val-hover">hover gate</span>
+  </div>
+  <div class="gate-row">
+    <div class="gate-dot" id="dot-click"></div>
+    <span class="gate-label">CLICK</span>
+    <span class="gate-value" id="val-click">click gate</span>
+  </div>
+  <div class="gate-row">
+    <div class="gate-dot" id="dot-scroll"></div>
+    <span class="gate-label">SCROLL</span>
+    <span class="gate-value" id="val-scroll">0%</span>
+  </div>
+  <div class="gate-row">
+    <div class="gate-dot" id="dot-human"></div>
+    <span class="gate-label">HUMAN</span>
+    <span class="gate-value" id="val-human">analyzing...</span>
+  </div>
+</div>
+
+<div class="gate-zone">
+  <div class="gate-box g0"><span>TIME<br>2s</span></div>
+  <div class="gate-box g1"><span>HOVER</span></div>
+  <div class="gate-box g2"><span>CLICK</span></div>
+  <div class="gate-box g3"><span>SCROLL<br>70%</span></div>
+</div>
+
+<div class="scroll-bar"><div class="scroll-fill"></div></div>
+
+<div class="content">PROVEN</div>
+
+<div class="blocked" id="blocked"></div>
+
+<script>
+const state = {
+  loadTime: Date.now(),
+  gates: { time: false, hover: false, click: false, scroll: false, human: false },
+  mouse: [],
+  blocked: null
+};
+
+// Block instant access
+if (document.readyState === 'complete' && performance.now() < 50) {
+  state.blocked = 'Instant scrape detected';
+}
+
+// Time gate
+setTimeout(() => {
+  if (!state.blocked) {
+    state.gates.time = true;
+    document.getElementById('dot-time').classList.add('pass');
+    document.getElementById('val-time').textContent = 'PASSED';
+    updateScore();
+  }
+}, 2000);
+
+// Hover gate
+document.querySelector('.g0').addEventListener('mouseenter', () => {
+  if (state.gates.time && !state.blocked) {
+    document.getElementById('dot-hover').classList.add('active');
+  }
+});
+
+document.querySelector('.g1').addEventListener('mouseenter', () => {
+  if (state.gates.time && !state.blocked) {
+    state.gates.hover = true;
+    document.getElementById('dot-hover').classList.remove('active');
+    document.getElementById('dot-hover').classList.add('pass');
+    document.getElementById('val-hover').textContent = 'PASSED';
+    updateScore();
+  }
+});
+
+// Click gate
+document.querySelector('.g2').addEventListener('mousedown', () => {
+  if (state.gates.hover && !state.blocked) {
+    state.gates.click = true;
+    document.getElementById('dot-click').classList.add('pass');
+    document.getElementById('val-click').textContent = 'PASSED';
+    updateScore();
+  }
+});
+
+// Scroll gate
+window.addEventListener('scroll', () => {
+  const pct = Math.round((window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100);
+  document.getElementById('val-scroll').textContent = pct + '%';
+
+  if (pct >= 70 && !state.gates.scroll && !state.blocked) {
+    state.gates.scroll = true;
+    document.getElementById('dot-scroll').classList.add('pass');
+    updateScore();
+  }
+}, { passive: true });
+
+// Mouse tracking for human detection
+document.addEventListener('mousemove', (e) => {
+  state.mouse.push({ x: e.clientX, y: e.clientY, t: Date.now() });
+  if (state.mouse.length > 50) state.mouse.shift();
+  checkHuman();
+});
+
+function checkHuman() {
+  if (state.mouse.length < 20) return;
+
+  // Check mouse variance
+  const xs = state.mouse.map(m => m.x);
+  const ys = state.mouse.map(m => m.y);
+  const xVar = variance(xs);
+  const yVar = variance(ys);
+
+  // Check velocity variance
+  const vels = [];
+  for (let i = 1; i < state.mouse.length; i++) {
+    const dx = state.mouse[i].x - state.mouse[i-1].x;
+    const dy = state.mouse[i].y - state.mouse[i-1].y;
+    const dt = state.mouse[i].t - state.mouse[i-1].t;
+    if (dt > 0) vels.push(Math.sqrt(dx*dx + dy*dy) / dt);
+  }
+  const velVar = variance(vels);
+
+  // Check timing variance
+  const intervals = [];
+  for (let i = 1; i < state.mouse.length; i++) {
+    intervals.push(state.mouse[i].t - state.mouse[i-1].t);
+  }
+  const timeVar = variance(intervals);
+
+  // Human criteria
+  const isHuman = xVar > 1000 && yVar > 1000 && velVar > 0.01 && timeVar > 10;
+
+  // Robot detection
+  if (velVar < 0.001 && state.mouse.length > 30) {
+    state.blocked = 'Robotic movement detected';
+    showBlocked();
+    return;
+  }
+
+  if (timeVar < 1 && state.mouse.length > 30) {
+    state.blocked = 'Perfect timing detected';
+    showBlocked();
+    return;
+  }
+
+  if (isHuman && !state.gates.human) {
+    state.gates.human = true;
+    document.getElementById('dot-human').classList.add('pass');
+    document.getElementById('val-human').textContent = 'VERIFIED';
+    updateScore();
+  } else if (!state.gates.human) {
+    document.getElementById('val-human').textContent = `v:${velVar.toFixed(3)} t:${timeVar.toFixed(0)}`;
+  }
+}
+
+function variance(arr) {
+  if (!arr.length) return 0;
+  const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+  return arr.reduce((s, v) => s + (v - mean) ** 2, 0) / arr.length;
+}
+
+function updateScore() {
+  const passed = Object.values(state.gates).filter(Boolean).length;
+  const pct = Math.round((passed / 5) * 100);
+  const el = document.getElementById('score');
+  el.textContent = pct + '%';
+  if (pct >= 80) el.classList.add('pass');
+}
+
+function showBlocked() {
+  document.getElementById('blocked').textContent = state.blocked;
+  document.getElementById('blocked').classList.add('show');
+}
+
+// Bot detection on load
+if (navigator.webdriver) {
+  state.blocked = 'WebDriver detected';
+  showBlocked();
+}
+
+if (/HeadlessChrome/i.test(navigator.userAgent)) {
+  state.blocked = 'Headless Chrome detected';
+  showBlocked();
+}
+
+if (window.__puppeteer_evaluation_script__ || window._playwrightBinding) {
+  state.blocked = 'Automation framework detected';
+  showBlocked();
+}
+</script>
+
+</body>
+</html>

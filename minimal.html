@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>.</title>
+<style>
+html{height:300vh}
+*{margin:0;box-sizing:border-box}
+body{background:#000}
+
+/* Gate container */
+.g{position:fixed;inset:0;display:grid;place-items:center;font:16px system-ui;gap:8px}
+
+/* Gate 0: TIME - appears after 2s */
+.g0{color:#000;animation:fade .3s 2s forwards}
+
+/* Gate 1: ACTION - visible after g0 hover */
+.g1{color:#000;pointer-events:none;transition:all .3s}
+.g0:hover~.g1{color:#333;pointer-events:auto}
+.g1:active{color:#0f0;transform:scale(1.2)}
+
+/* Gate 2: DISCOVERY - visible on scroll */
+.g2{color:#000;animation:scroll-reveal linear both;animation-timeline:scroll()}
+
+/* Gate 3: CONTENT - only after all gates */
+.content{color:#000;animation:scroll-final linear both;animation-timeline:scroll()}
+
+@keyframes fade{to{color:#0f0}}
+@keyframes scroll-reveal{60%,100%{color:#333}}
+@keyframes scroll-final{85%,100%{color:#0f0}}
+</style>
+</head>
+<body>
+<div class="g">
+  <span class="g0">wait</span>
+  <span class="g1">click</span>
+  <span class="g2">scroll</span>
+  <span class="content">found</span>
+</div>
+</body>
+</html>
