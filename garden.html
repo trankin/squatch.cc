@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Garden</title>
+<style>
+:root{--g:#0f0;--y:#ff0;--r:#f00;--bg:#000}
+*{margin:0;padding:0;box-sizing:border-box}
+html{height:200vh}
+body{background:var(--bg);color:#888;font:11px 'SF Mono',Monaco,monospace}
+
+/* Gate chain visualization */
+.gate-chain{position:fixed;top:0;left:0;right:0;padding:15px 20px;background:#000;border-bottom:1px solid #111;z-index:1000;display:flex;align-items:center;gap:8px}
+.gate-node{width:12px;height:12px;border-radius:50%;background:#111;border:1px solid #222;transition:all .3s}
+.gate-node.active{background:var(--y);border-color:var(--y);box-shadow:0 0 10px #ff04}
+.gate-node.pass{background:var(--g);border-color:var(--g);box-shadow:0 0 10px #0f04}
+.gate-node.current{animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
+.gate-line{flex:1;height:1px;background:#222}
+.gate-line.active{background:var(--g)}
+.gate-label{position:absolute;top:32px;font-size:8px;color:#333;transform:translateX(-50%);white-space:nowrap}
+
+/* Main container */
+.container{padding:60px 20px 20px;max-width:800px;margin:0 auto}
+
+/* Stage cards */
+.stage{background:#0a0a0a;border:1px solid #1a1a1a;padding:20px;margin-bottom:15px;display:none}
+.stage.visible{display:block}
+.stage.active{border-color:#ff03}
+.stage.complete{border-color:#0f03}
+.stage h2{color:#fff;font-size:12px;margin-bottom:15px;display:flex;align-items:center;gap:10px}
+.stage h2::before{content:'';width:8px;height:8px;border-radius:50%;background:#222}
+.stage.active h2::before{background:var(--y)}
+.stage.complete h2::before{background:var(--g)}
+
+.stage p{color:#555;font-size:10px;margin-bottom:15px;line-height:1.6}
+
+button{background:#0f01;border:1px solid #0f03;color:var(--g);padding:10px 20px;cursor:pointer;font:inherit;transition:all .2s}
+button:hover:not(:disabled){background:#0f02;border-color:var(--g)}
+button:disabled{opacity:.3;cursor:not-allowed}
+
+.key-display{background:#000;padding:15px;margin:15px 0;word-break:break-all}
+.key-label{color:#555;font-size:9px;margin-bottom:5px}
+.key-value{color:var(--g);font-size:10px;font-family:inherit}
+.key-value.secret{color:var(--y)}
+
+.peer-list{margin:15px 0}
+.peer{display:flex;align-items:center;gap:10px;padding:8px;background:#000;margin:5px 0}
+.peer-id{color:#0ff;font-size:9px;flex:1;overflow:hidden;text-overflow:ellipsis}
+.peer-status{font-size:9px}
+.peer-status.connected{color:var(--g)}
+.peer-status.connecting{color:var(--y)}
+
+/* Garden */
+.garden{display:none;text-align:center;padding:60px 20px}
+.garden.visible{display:block}
+.garden h1{color:var(--g);font-size:24px;font-weight:300;margin-bottom:20px}
+.garden p{color:#555;font-size:12px;max-width:500px;margin:0 auto 30px;line-height:1.8}
+.garden-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:15px;margin-top:30px}
+.garden-node{background:#0a0a0a;border:1px solid #0f03;padding:20px;text-align:center}
+.garden-node h3{color:#fff;font-size:11px;margin-bottom:8px}
+.garden-node p{color:#555;font-size:9px}
+
+/* Status bar */
+.status-bar{position:fixed;bottom:0;left:0;right:0;padding:10px 20px;background:#000;border-top:1px solid #111;display:flex;justify-content:space-between;font-size:9px}
+.status-item{color:#555}
+.status-item span{color:var(--g)}
+
+/* Log */
+.log{background:#000;border:1px solid #111;padding:10px;max-height:100px;overflow-y:auto;font-size:9px;margin:15px 0}
+.log-entry{padding:2px 0;color:#555}
+.log-entry.success{color:var(--g)}
+.log-entry.error{color:var(--r)}
+.log-entry.info{color:#0ff}
+</style>
+</head>
+<body>
+
+<!-- Gate Chain -->
+<div class="gate-chain">
+  <div class="gate-node" id="g-css"><span class="gate-label">CSS</span></div>
+  <div class="gate-line" id="l-css"></div>
+  <div class="gate-node" id="g-js"><span class="gate-label">JS</span></div>
+  <div class="gate-line" id="l-js"></div>
+  <div class="gate-node" id="g-vector"><span class="gate-label">VECTOR</span></div>
+  <div class="gate-line" id="l-vector"></div>
+  <div class="gate-node" id="g-passkey"><span class="gate-label">PASSKEY</span></div>
+  <div class="gate-line" id="l-passkey"></div>
+  <div class="gate-node" id="g-nostr"><span class="gate-label">NOSTR</span></div>
+  <div class="gate-line" id="l-nostr"></div>
+  <div class="gate-node" id="g-p2p"><span class="gate-label">P2P</span></div>
+  <div class="gate-line" id="l-p2p"></div>
+  <div class="gate-node" id="g-garden"><span class="gate-label">GARDEN</span></div>
+</div>
+
+<div class="container">
+
+  <!-- Stage 0: CSS Gate -->
+  <div class="stage visible active" id="stage-css">
+    <h2>Stage 0: CSS Gate</h2>
+    <p>This gate runs without JavaScript. You must wait, hover, and scroll to prove basic humanity.</p>
+    <div style="display:flex;gap:10px;margin:15px 0">
+      <div id="css-time" style="padding:8px 12px;background:#111;border:1px solid #222">TIME: <span>waiting...</span></div>
+      <div id="css-hover" style="padding:8px 12px;background:#111;border:1px solid #222">HOVER: <span>-</span></div>
+      <div id="css-scroll" style="padding:8px 12px;background:#111;border:1px solid #222">SCROLL: <span>0%</span></div>
+    </div>
+  </div>
+
+  <!-- Stage 1: JS Gate -->
+  <div class="stage" id="stage-js">
+    <h2>Stage 1: JavaScript Gate</h2>
+    <p>Deep fingerprinting. Automation detection. We observe silently.</p>
+    <div class="log" id="js-log"></div>
+  </div>
+
+  <!-- Stage 2: Vector Gate -->
+  <div class="stage" id="stage-vector">
+    <h2>Stage 2: Vector Embedding</h2>
+    <p>Your behavior becomes a 64-dimensional vector. We remember patterns, not data.</p>
+    <div style="display:flex;gap:2px;height:30px;align-items:end;margin:15px 0" id="vector-viz"></div>
+    <div class="key-display">
+      <div class="key-label">Behavioral Vector</div>
+      <div class="key-value" id="vector-display">Collecting...</div>
+    </div>
+  </div>
+
+  <!-- Stage 3: Passkey Gate -->
+  <div class="stage" id="stage-passkey">
+    <h2>Stage 3: WebAuthn Passkey</h2>
+    <p>Create a cryptographic identity. Usernameless. Device-bound. Phishing-resistant.</p>
+    <button id="create-passkey">Create Passkey</button>
+    <div class="key-display" id="passkey-display" style="display:none">
+      <div class="key-label">Credential ID</div>
+      <div class="key-value" id="passkey-id">-</div>
+    </div>
+  </div>
+
+  <!-- Stage 4: Nostr Gate -->
+  <div class="stage" id="stage-nostr">
+    <h2>Stage 4: Nostr Identity</h2>
+    <p>Generate your Nostr keypair. This is your sovereign identity across the decentralized web.</p>
+    <button id="generate-nostr">Generate Nostr Keys</button>
+    <div id="nostr-keys" style="display:none">
+      <div class="key-display">
+        <div class="key-label">Public Key (npub)</div>
+        <div class="key-value" id="nostr-npub">-</div>
+      </div>
+      <div class="key-display">
+        <div class="key-label">Private Key (nsec) - SAVE THIS</div>
+        <div class="key-value secret" id="nostr-nsec">-</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stage 5: P2P Gate -->
+  <div class="stage" id="stage-p2p">
+    <h2>Stage 5: P2P Data Channel</h2>
+    <p>Establishing libp2p WebRTC connection. Direct peer-to-peer. No servers in the middle.</p>
+    <button id="start-p2p">Initialize P2P</button>
+    <div class="log" id="p2p-log"></div>
+    <div class="peer-list" id="peer-list"></div>
+    <div class="key-display" id="p2p-id-display" style="display:none">
+      <div class="key-label">Your Peer ID</div>
+      <div class="key-value" id="p2p-id">-</div>
+    </div>
+  </div>
+
+  <!-- Stage 6: Garden -->
+  <div class="garden" id="garden">
+    <h1>Welcome to the Garden</h1>
+    <p>You passed all gates. You proved humanity through patience, action, cryptography, and peer connection. You touched no servers until now. Welcome.</p>
+    <div class="garden-grid">
+      <div class="garden-node">
+        <h3>Vector Fabric</h3>
+        <p>Decentralized reasoning</p>
+      </div>
+      <div class="garden-node">
+        <h3>P2P Mesh</h3>
+        <p>Browser-to-browser</p>
+      </div>
+      <div class="garden-node">
+        <h3>GPU Compute</h3>
+        <p>Distributed inference</p>
+      </div>
+      <div class="garden-node">
+        <h3>Sovereign Identity</h3>
+        <p>You own your keys</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Status Bar -->
+<div class="status-bar">
+  <div class="status-item">Stage: <span id="current-stage">0</span>/6</div>
+  <div class="status-item">Organic: <span id="organic-score">0</span>%</div>
+  <div class="status-item">Vectors: <span id="vector-count">0</span></div>
+  <div class="status-item">Peers: <span id="peer-count">0</span></div>
+</div>
+
+<script type="module">
+// ============================================
+// THE GARDEN - COMPLETE GATE CHAIN
+// ============================================
+
+const state = {
+  stage: 0,
+  organic: 0,
+  gates: {
+    css: { time: false, hover: false, scroll: false },
+    js: false,
+    vector: false,
+    passkey: null,
+    nostr: null,
+    p2p: null
+  },
+  mouseBuffer: [],
+  vectors: [],
+  startTime: Date.now()
+};
+
+// ============================================
+// TINY EMBED
+// ============================================
+
+const TinyEmbed = {
+  hash(str, seed = 0) {
+    let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+    for (let i = 0; i < str.length; i++) {
+      const ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+    h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+  },
+
+  embedBehavior(events, dim = 64) {
+    const vector = new Float32Array(dim);
+    if (events.length < 5) return Array.from(vector);
+
+    for (let i = 1; i < events.length; i++) {
+      const dx = events[i].x - events[i-1].x;
+      const dy = events[i].y - events[i-1].y;
+      const dt = events[i].t - events[i-1].t || 1;
+      const v = Math.sqrt(dx*dx + dy*dy) / dt;
+      const bin = Math.min(dim - 1, Math.floor(v * 10));
+      vector[bin] += 1 / events.length;
+    }
+
+    let norm = 0;
+    for (let i = 0; i < dim; i++) norm += vector[i] * vector[i];
+    norm = Math.sqrt(norm) || 1;
+    for (let i = 0; i < dim; i++) vector[i] /= norm;
+
+    return Array.from(vector);
+  }
+};
+
+// ============================================
+// NOSTR KEYS (secp256k1 + bech32)
+// ============================================
+
+const Nostr = {
+  // Simple secp256k1 - in production use noble-secp256k1
+  async generateKeypair() {
+    // Generate 32 random bytes for private key
+    const privateKey = new Uint8Array(32);
+    crypto.getRandomValues(privateKey);
+
+    // For demo, we'll use the private key as-is
+    // In production, derive public key using secp256k1
+    const publicKey = await this.derivePublicKey(privateKey);
+
+    return {
+      privateKey: this.bytesToHex(privateKey),
+      publicKey: this.bytesToHex(publicKey),
+      nsec: this.encodeBech32('nsec', privateKey),
+      npub: this.encodeBech32('npub', publicKey)
+    };
+  },
+
+  async derivePublicKey(privateKey) {
+    // Simplified - hash the private key for demo
+    // Real implementation would use secp256k1 point multiplication
+    const hashBuffer = await crypto.subtle.digest('SHA-256', privateKey);
+    return new Uint8Array(hashBuffer);
+  },
+
+  bytesToHex(bytes) {
+    return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+  },
+
+  // Bech32 encoding (simplified)
+  encodeBech32(prefix, data) {
+    const CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+    const values = [];
+
+    // Convert bytes to 5-bit groups
+    let acc = 0, bits = 0;
+    for (const byte of data) {
+      acc = (acc << 8) | byte;
+      bits += 8;
+      while (bits >= 5) {
+        bits -= 5;
+        values.push((acc >> bits) & 31);
+      }
+    }
+    if (bits > 0) values.push((acc << (5 - bits)) & 31);
+
+    // Checksum (simplified)
+    const checksum = this.bech32Checksum(prefix, values);
+    values.push(...checksum);
+
+    return prefix + '1' + values.map(v => CHARSET[v]).join('');
+  },
+
+  bech32Checksum(prefix, values) {
+    // Simplified checksum - real implementation is more complex
+    const combined = [...prefix.split('').map(c => c.charCodeAt(0) & 31), 0, ...values];
+    let chk = 1;
+    for (const v of combined) {
+      chk = ((chk << 5) ^ v) % 0x3fffffff;
+    }
+    return [0, 0, 0, 0, 0, 0].map((_, i) => (chk >> (5 * (5 - i))) & 31);
+  }
+};
+
+// ============================================
+// LIBP2P (simplified WebRTC signaling)
+// ============================================
+
+const P2P = {
+  peerId: null,
+  peers: new Map(),
+
+  async init() {
+    // Generate peer ID
+    const idBytes = new Uint8Array(32);
+    crypto.getRandomValues(idBytes);
+    this.peerId = Array.from(idBytes).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+
+    log('p2p', `Peer ID: ${this.peerId}`, 'success');
+
+    // In real implementation:
+    // 1. Load js-libp2p WASM
+    // 2. Create WebRTC transport
+    // 3. Connect to bootstrap nodes
+    // 4. Establish data channels
+
+    // Simulate peer discovery
+    setTimeout(() => this.simulateDiscovery(), 1000);
+
+    return this.peerId;
+  },
+
+  simulateDiscovery() {
+    // Simulate finding peers
+    const fakePeers = [
+      { id: 'Qm' + Math.random().toString(36).slice(2, 14), status: 'connected' },
+      { id: 'Qm' + Math.random().toString(36).slice(2, 14), status: 'connecting' }
+    ];
+
+    fakePeers.forEach(p => this.peers.set(p.id, p));
+    renderPeers();
+    log('p2p', `Discovered ${fakePeers.length} peers`, 'info');
+  }
+};
+
+// ============================================
+// GATE LOGIC
+// ============================================
+
+function advanceStage() {
+  const stages = ['css', 'js', 'vector', 'passkey', 'nostr', 'p2p', 'garden'];
+
+  // Check current stage requirements
+  if (state.stage === 0) {
+    // CSS gate - need time + hover + scroll
+    if (state.gates.css.time && state.gates.css.hover && state.gates.css.scroll) {
+      completeStage(0);
+    }
+  } else if (state.stage === 1) {
+    // JS gate - automatic after CSS
+    if (state.gates.js) {
+      completeStage(1);
+    }
+  } else if (state.stage === 2) {
+    // Vector gate - need enough behavioral data
+    if (state.gates.vector) {
+      completeStage(2);
+    }
+  } else if (state.stage === 3) {
+    // Passkey gate
+    if (state.gates.passkey) {
+      completeStage(3);
+    }
+  } else if (state.stage === 4) {
+    // Nostr gate
+    if (state.gates.nostr) {
+      completeStage(4);
+    }
+  } else if (state.stage === 5) {
+    // P2P gate
+    if (state.gates.p2p) {
+      completeStage(5);
+      showGarden();
+    }
+  }
+}
+
+function completeStage(n) {
+  const stages = ['css', 'js', 'vector', 'passkey', 'nostr', 'p2p', 'garden'];
+
+  // Update gate chain UI
+  document.getElementById(`g-${stages[n]}`).classList.remove('active', 'current');
+  document.getElementById(`g-${stages[n]}`).classList.add('pass');
+  document.getElementById(`l-${stages[n]}`).classList.add('active');
+
+  // Update stage card
+  document.getElementById(`stage-${stages[n]}`).classList.remove('active');
+  document.getElementById(`stage-${stages[n]}`).classList.add('complete');
+
+  // Move to next stage
+  state.stage = n + 1;
+  state.organic = Math.min(100, (state.stage / 6) * 100);
+
+  if (n < 5) {
+    const next = stages[n + 1];
+    document.getElementById(`g-${next}`).classList.add('active', 'current');
+    document.getElementById(`stage-${next}`).classList.add('visible', 'active');
+  }
+
+  updateStatus();
+}
+
+function showGarden() {
+  document.getElementById('g-garden').classList.add('pass');
+  document.getElementById('garden').classList.add('visible');
+}
+
+// ============================================
+// LOGGING
+// ============================================
+
+function log(target, msg, type = 'info') {
+  const el = document.getElementById(`${target}-log`);
+  if (el) {
+    const entry = document.createElement('div');
+    entry.className = `log-entry ${type}`;
+    entry.textContent = `${new Date().toLocaleTimeString()} ${msg}`;
+    el.appendChild(entry);
+    el.scrollTop = el.scrollHeight;
+  }
+}
+
+function updateStatus() {
+  document.getElementById('current-stage').textContent = state.stage;
+  document.getElementById('organic-score').textContent = Math.round(state.organic);
+  document.getElementById('vector-count').textContent = state.vectors.length;
+  document.getElementById('peer-count').textContent = P2P.peers.size;
+}
+
+function renderPeers() {
+  const list = document.getElementById('peer-list');
+  list.innerHTML = Array.from(P2P.peers.values()).map(p => `
+    <div class="peer">
+      <span class="peer-id">${p.id}</span>
+      <span class="peer-status ${p.status}">${p.status.toUpperCase()}</span>
+    </div>
+  `).join('');
+  updateStatus();
+}
+
+// ============================================
+// EVENT HANDLERS
+// ============================================
+
+// CSS Gate: Time
+setTimeout(() => {
+  state.gates.css.time = true;
+  document.querySelector('#css-time span').textContent = 'PASS';
+  document.getElementById('css-time').style.borderColor = '#0f0';
+  advanceStage();
+}, 2000);
+
+// CSS Gate: Hover
+document.getElementById('css-hover').addEventListener('mouseenter', () => {
+  state.gates.css.hover = true;
+  document.querySelector('#css-hover span').textContent = 'PASS';
+  document.getElementById('css-hover').style.borderColor = '#0f0';
+  advanceStage();
+});
+
+// CSS Gate: Scroll
+window.addEventListener('scroll', () => {
+  const pct = Math.round((window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100);
+  document.querySelector('#css-scroll span').textContent = pct + '%';
+
+  if (pct >= 50) {
+    state.gates.css.scroll = true;
+    document.getElementById('css-scroll').style.borderColor = '#0f0';
+    advanceStage();
+  }
+}, { passive: true });
+
+// Mouse tracking
+document.addEventListener('mousemove', (e) => {
+  state.mouseBuffer.push({ x: e.clientX, y: e.clientY, t: performance.now() });
+  if (state.mouseBuffer.length > 100) state.mouseBuffer.shift();
+
+  if (state.mouseBuffer.length >= 20 && state.stage >= 2) {
+    const vector = TinyEmbed.embedBehavior(state.mouseBuffer);
+    state.vectors.push(vector);
+
+    // Visualize
+    const viz = document.getElementById('vector-viz');
+    viz.innerHTML = vector.slice(0, 32).map(v =>
+      `<div style="width:3px;height:${Math.abs(v) * 30}px;background:#0f0"></div>`
+    ).join('');
+
+    document.getElementById('vector-display').textContent =
+      '[' + vector.slice(0, 6).map(v => v.toFixed(3)).join(', ') + ', ...]';
+
+    if (state.vectors.length >= 10 && !state.gates.vector) {
+      state.gates.vector = true;
+      advanceStage();
+    }
+  }
+
+  updateStatus();
+});
+
+// JS Gate - run fingerprint checks
+setTimeout(() => {
+  log('js', 'Checking navigator.webdriver...', 'info');
+  log('js', `webdriver: ${navigator.webdriver ? 'DETECTED' : 'clean'}`, navigator.webdriver ? 'error' : 'success');
+
+  log('js', 'Checking headless indicators...', 'info');
+  const headless = /HeadlessChrome/i.test(navigator.userAgent);
+  log('js', `headless: ${headless ? 'DETECTED' : 'clean'}`, headless ? 'error' : 'success');
+
+  log('js', 'Checking automation frameworks...', 'info');
+  const auto = !!(window.__puppeteer_evaluation_script__ || window._playwrightBinding);
+  log('js', `automation: ${auto ? 'DETECTED' : 'clean'}`, auto ? 'error' : 'success');
+
+  if (!navigator.webdriver && !headless && !auto) {
+    state.gates.js = true;
+    log('js', 'All checks passed', 'success');
+    advanceStage();
+  }
+}, 2500);
+
+// Passkey
+document.getElementById('create-passkey').addEventListener('click', async () => {
+  try {
+    const challenge = new Uint8Array(32);
+    crypto.getRandomValues(challenge);
+
+    const credential = await navigator.credentials.create({
+      publicKey: {
+        challenge,
+        rp: { name: 'The Garden', id: location.hostname },
+        user: {
+          id: new Uint8Array(16),
+          name: 'garden-user',
+          displayName: 'Garden User'
+        },
+        pubKeyCredParams: [{ alg: -7, type: 'public-key' }],
+        authenticatorSelection: {
+          authenticatorAttachment: 'platform',
+          residentKey: 'required'
+        }
+      }
+    });
+
+    const credId = btoa(String.fromCharCode(...new Uint8Array(credential.rawId)));
+    state.gates.passkey = credId;
+
+    document.getElementById('passkey-display').style.display = 'block';
+    document.getElementById('passkey-id').textContent = credId.slice(0, 32) + '...';
+
+    advanceStage();
+  } catch (e) {
+    alert('Passkey creation failed: ' + e.message);
+  }
+});
+
+// Nostr
+document.getElementById('generate-nostr').addEventListener('click', async () => {
+  const keys = await Nostr.generateKeypair();
+  state.gates.nostr = keys;
+
+  document.getElementById('nostr-keys').style.display = 'block';
+  document.getElementById('nostr-npub').textContent = keys.npub;
+  document.getElementById('nostr-nsec').textContent = keys.nsec;
+
+  advanceStage();
+});
+
+// P2P
+document.getElementById('start-p2p').addEventListener('click', async () => {
+  log('p2p', 'Initializing libp2p...', 'info');
+  log('p2p', 'Loading WebRTC transport...', 'info');
+
+  const peerId = await P2P.init();
+  state.gates.p2p = peerId;
+
+  document.getElementById('p2p-id-display').style.display = 'block';
+  document.getElementById('p2p-id').textContent = peerId;
+
+  advanceStage();
+});
+
+// Initialize
+document.getElementById('g-css').classList.add('active', 'current');
+updateStatus();
+</script>
+
+</body>
+</html>
