@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vector Embeddings</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;color:#888;font:12px 'SF Mono',Monaco,monospace;padding:20px}
+h1{color:#fff;font-size:14px;font-weight:400;margin-bottom:20px}
+.section{margin-bottom:30px}
+.section h2{color:#0f0;font-size:11px;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px}
+.log{background:#0a0a0a;border:1px solid #1a1a1a;padding:15px;max-height:200px;overflow-y:auto;font-size:10px;line-height:1.8}
+.log .info{color:#666}
+.log .success{color:#0f0}
+.log .error{color:#f00}
+.log .vector{color:#0ff;word-break:break-all}
+.input-area{display:flex;gap:10px;margin-bottom:15px}
+input{flex:1;background:#111;border:1px solid #222;color:#fff;padding:10px;font:inherit;outline:none}
+input:focus{border-color:#0f04}
+button{background:#0f02;border:1px solid #0f04;color:#0f0;padding:10px 20px;cursor:pointer;font:inherit}
+button:hover{background:#0f03}
+button:disabled{opacity:0.3;cursor:not-allowed}
+.vectors{display:grid;gap:10px}
+.vector-card{background:#0a0a0a;border:1px solid #1a1a1a;padding:12px}
+.vector-card .text{color:#fff;font-size:11px;margin-bottom:8px}
+.vector-card .dims{color:#0f0;font-size:9px;word-break:break-all;max-height:60px;overflow:hidden}
+.vector-card .meta{color:#444;font-size:9px;margin-top:8px}
+.similarity{margin-top:20px}
+.sim-grid{display:grid;gap:5px}
+.sim-row{display:flex;align-items:center;gap:10px;font-size:10px}
+.sim-bar{flex:1;height:8px;background:#111}
+.sim-fill{height:100%;background:#0f0;transition:width 0.3s}
+.sim-val{width:50px;text-align:right;color:#0f0}
+.status{position:fixed;top:10px;right:10px;padding:8px 12px;font-size:10px;background:#111;border:1px solid #222}
+.status.loading{border-color:#ff0;color:#ff0}
+.status.ready{border-color:#0f0;color:#0f0}
+.behavioral{margin-top:20px}
+.behavior-viz{display:flex;gap:2px;height:40px;align-items:end}
+.behavior-bar{width:4px;background:#0f0;transition:height 0.1s}
+</style>
+</head>
+<body>
+
+<div class="status loading" id="status">Loading model...</div>
+
+<h1>Browser-Side Vector Embeddings</h1>
+
+<div class="section">
+  <h2>Text Embedding</h2>
+  <div class="input-area">
+    <input type="text" id="text-input" placeholder="Enter text to embed..." disabled>
+    <button id="embed-btn" disabled>Embed</button>
+  </div>
+  <div class="vectors" id="vectors"></div>
+</div>
+
+<div class="section">
+  <h2>Similarity Matrix</h2>
+  <div class="sim-grid" id="similarity"></div>
+</div>
+
+<div class="section">
+  <h2>Behavioral Embedding</h2>
+  <p style="color:#444;font-size:10px;margin-bottom:10px">Move mouse to capture behavioral vector</p>
+  <div class="behavior-viz" id="behavior-viz"></div>
+  <div id="behavior-vector" style="margin-top:10px"></div>
+</div>
+
+<div class="section">
+  <h2>Log</h2>
+  <div class="log" id="log"></div>
+</div>
+
+<script type="module">
+// ============================================
+// TINY EMBEDDING SYSTEM
+// ============================================
+
+const log = (msg, type = 'info') => {
+  const el = document.getElementById('log');
+  el.innerHTML += `<div class="${type}">${new Date().toLocaleTimeString()} ${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
+};
+
+const state = {
+  model: null,
+  tokenizer: null,
+  vectors: [],
+  behaviorBuffer: [],
+  ready: false
+};
+
+// ============================================
+// LOAD TRANSFORMERS.JS
+// ============================================
+
+log('Importing Transformers.js...');
+
+const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.1');
+
+// Use remote models (no local cache needed)
+env.allowLocalModels = false;
+env.useBrowserCache = true;
+
+log('Transformers.js loaded', 'success');
+log('Loading embedding model (22MB, one-time download)...');
+
+// Load a tiny but good embedding model
+// all-MiniLM-L6-v2: 384 dimensions, 22MB, fast
+const embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
+  quantized: true  // Use quantized version for smaller size
+});
+
+log('Model ready: all-MiniLM-L6-v2 (384-dim)', 'success');
+state.ready = true;
+
+document.getElementById('status').className = 'status ready';
+document.getElementById('status').textContent = 'Model ready';
+document.getElementById('text-input').disabled = false;
+document.getElementById('embed-btn').disabled = false;
+
+// ============================================
+// TEXT EMBEDDING
+// ============================================
+
+async function embedText(text) {
+  const start = performance.now();
+
+  // Get embeddings
+  const output = await embedder(text, { pooling: 'mean', normalize: true });
+
+  // Convert to array
+  const vector = Array.from(output.data);
+
+  const elapsed = (performance.now() - start).toFixed(1);
+  log(`Embedded "${text.slice(0, 30)}..." in ${elapsed}ms (${vector.length} dims)`, 'success');
+
+  return {
+    text,
+    vector,
+    timestamp: Date.now(),
+    elapsed: parseFloat(elapsed)
+  };
+}
+
+document.getElementById('embed-btn').addEventListener('click', async () => {
+  const input = document.getElementById('text-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  const embedding = await embedText(text);
+  state.vectors.push(embedding);
+
+  renderVectors();
+  renderSimilarity();
+
+  input.value = '';
+});
+
+document.getElementById('text-input').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') document.getElementById('embed-btn').click();
+});
+
+// ============================================
+// RENDER VECTORS
+// ============================================
+
+function renderVectors() {
+  const container = document.getElementById('vectors');
+  container.innerHTML = state.vectors.map((v, i) => `
+    <div class="vector-card">
+      <div class="text">${v.text}</div>
+      <div class="dims">[${v.vector.slice(0, 8).map(n => n.toFixed(4)).join(', ')}, ...]</div>
+      <div class="meta">${v.vector.length} dims | ${v.elapsed}ms | ${new Date(v.timestamp).toLocaleTimeString()}</div>
+    </div>
+  `).join('');
+}
+
+// ============================================
+// SIMILARITY
+// ============================================
+
+function cosineSimilarity(a, b) {
+  let dot = 0, normA = 0, normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+function renderSimilarity() {
+  if (state.vectors.length < 2) {
+    document.getElementById('similarity').innerHTML = '<div style="color:#444;font-size:10px">Add 2+ embeddings to compare</div>';
+    return;
+  }
+
+  const html = [];
+  for (let i = 1; i < state.vectors.length; i++) {
+    const sim = cosineSimilarity(state.vectors[0].vector, state.vectors[i].vector);
+    const pct = ((sim + 1) / 2 * 100).toFixed(1); // Normalize -1..1 to 0..100
+    html.push(`
+      <div class="sim-row">
+        <span style="width:150px;overflow:hidden;text-overflow:ellipsis">"${state.vectors[0].text.slice(0, 15)}..." ↔ "${state.vectors[i].text.slice(0, 15)}..."</span>
+        <div class="sim-bar"><div class="sim-fill" style="width:${pct}%"></div></div>
+        <span class="sim-val">${(sim * 100).toFixed(1)}%</span>
+      </div>
+    `);
+  }
+  document.getElementById('similarity').innerHTML = html.join('');
+}
+
+// ============================================
+// BEHAVIORAL EMBEDDING
+// ============================================
+
+// Capture mouse movements as a behavioral signal
+let mouseBuffer = [];
+const BEHAVIOR_WINDOW = 50;
+
+document.addEventListener('mousemove', (e) => {
+  mouseBuffer.push({
+    x: e.clientX / window.innerWidth,
+    y: e.clientY / window.innerHeight,
+    t: performance.now()
+  });
+
+  if (mouseBuffer.length > BEHAVIOR_WINDOW) {
+    mouseBuffer.shift();
+  }
+
+  updateBehaviorViz();
+});
+
+function updateBehaviorViz() {
+  if (mouseBuffer.length < 10) return;
+
+  // Extract features from mouse movement
+  const features = extractBehaviorFeatures(mouseBuffer);
+
+  // Visualize as bars
+  const viz = document.getElementById('behavior-viz');
+  viz.innerHTML = features.slice(0, 32).map(f =>
+    `<div class="behavior-bar" style="height:${Math.abs(f) * 40}px;opacity:${0.3 + Math.abs(f) * 0.7}"></div>`
+  ).join('');
+
+  // Show vector
+  document.getElementById('behavior-vector').innerHTML = `
+    <div style="font-size:9px;color:#0ff;word-break:break-all">
+      [${features.slice(0, 16).map(f => f.toFixed(3)).join(', ')}, ...]
+    </div>
+    <div style="font-size:9px;color:#444;margin-top:5px">${features.length} behavioral dimensions</div>
+  `;
+}
+
+function extractBehaviorFeatures(buffer) {
+  // Extract 64-dimensional behavioral vector from mouse movements
+  const features = [];
+
+  // Velocity features
+  const velocities = [];
+  for (let i = 1; i < buffer.length; i++) {
+    const dx = buffer[i].x - buffer[i-1].x;
+    const dy = buffer[i].y - buffer[i-1].y;
+    const dt = buffer[i].t - buffer[i-1].t;
+    if (dt > 0) {
+      velocities.push(Math.sqrt(dx*dx + dy*dy) / dt * 1000);
+    }
+  }
+
+  // Velocity stats
+  features.push(mean(velocities));
+  features.push(variance(velocities));
+  features.push(Math.min(...velocities));
+  features.push(Math.max(...velocities));
+
+  // Acceleration features
+  const accelerations = [];
+  for (let i = 1; i < velocities.length; i++) {
+    accelerations.push(velocities[i] - velocities[i-1]);
+  }
+  features.push(mean(accelerations));
+  features.push(variance(accelerations));
+
+  // Direction changes
+  const angles = [];
+  for (let i = 2; i < buffer.length; i++) {
+    const dx1 = buffer[i-1].x - buffer[i-2].x;
+    const dy1 = buffer[i-1].y - buffer[i-2].y;
+    const dx2 = buffer[i].x - buffer[i-1].x;
+    const dy2 = buffer[i].y - buffer[i-1].y;
+    const angle = Math.atan2(dy2, dx2) - Math.atan2(dy1, dx1);
+    angles.push(angle);
+  }
+  features.push(mean(angles.map(Math.abs)));
+  features.push(variance(angles));
+
+  // Position distribution
+  const xs = buffer.map(b => b.x);
+  const ys = buffer.map(b => b.y);
+  features.push(mean(xs));
+  features.push(mean(ys));
+  features.push(variance(xs));
+  features.push(variance(ys));
+
+  // Timing features
+  const intervals = [];
+  for (let i = 1; i < buffer.length; i++) {
+    intervals.push(buffer[i].t - buffer[i-1].t);
+  }
+  features.push(mean(intervals));
+  features.push(variance(intervals));
+
+  // Histogram of velocities (16 bins)
+  const velHist = histogram(velocities, 16, 0, 2);
+  features.push(...velHist);
+
+  // Histogram of angles (16 bins)
+  const angleHist = histogram(angles, 16, -Math.PI, Math.PI);
+  features.push(...angleHist);
+
+  // Histogram of positions (16 bins for x, 16 for y)
+  const xHist = histogram(xs, 8, 0, 1);
+  const yHist = histogram(ys, 8, 0, 1);
+  features.push(...xHist);
+  features.push(...yHist);
+
+  // Normalize to unit vector
+  const norm = Math.sqrt(features.reduce((s, f) => s + f * f, 0)) || 1;
+  return features.map(f => f / norm);
+}
+
+function mean(arr) {
+  return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+}
+
+function variance(arr) {
+  if (!arr.length) return 0;
+  const m = mean(arr);
+  return arr.reduce((s, v) => s + (v - m) ** 2, 0) / arr.length;
+}
+
+function histogram(arr, bins, min, max) {
+  const hist = new Array(bins).fill(0);
+  const range = max - min;
+  arr.forEach(v => {
+    const bin = Math.floor((v - min) / range * bins);
+    if (bin >= 0 && bin < bins) hist[bin]++;
+  });
+  const total = arr.length || 1;
+  return hist.map(h => h / total);
+}
+
+// ============================================
+// DEMO: Pre-embed some examples
+// ============================================
+
+setTimeout(async () => {
+  if (!state.ready) return;
+
+  log('Embedding demo texts...');
+
+  const demos = [
+    "Human behavior patterns are unique like fingerprints",
+    "Machine learning models can detect subtle patterns",
+    "The quick brown fox jumps over the lazy dog"
+  ];
+
+  for (const text of demos) {
+    const embedding = await embedText(text);
+    state.vectors.push(embedding);
+  }
+
+  renderVectors();
+  renderSimilarity();
+
+  log('Demo complete. Try adding your own text!', 'success');
+}, 1000);
+
+</script>
+</body>
+</html>

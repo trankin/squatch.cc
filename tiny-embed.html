@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tiny Embeddings</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;color:#888;font:11px 'SF Mono',Monaco,monospace;padding:20px;line-height:1.6}
+h1{color:#fff;font-size:13px;font-weight:400;margin-bottom:5px}
+.subtitle{color:#444;font-size:10px;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.section{background:#0a0a0a;border:1px solid #1a1a1a;padding:15px}
+.section h2{color:#0f0;font-size:10px;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px}
+.vector-display{font-size:9px;color:#0ff;word-break:break-all;background:#000;padding:10px;margin:10px 0;max-height:80px;overflow:hidden}
+.meta{font-size:9px;color:#444}
+.stat{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #111}
+.stat-label{color:#666}
+.stat-value{color:#0f0}
+button{background:#0f01;border:1px solid #0f03;color:#0f0;padding:8px 16px;cursor:pointer;font:inherit;margin:5px 5px 5px 0}
+button:hover{background:#0f02}
+input{background:#111;border:1px solid #222;color:#fff;padding:8px;font:inherit;width:100%;margin-bottom:10px}
+.sim-bar{height:6px;background:#111;margin:4px 0}
+.sim-fill{height:100%;background:#0f0}
+.benchmark{margin-top:15px}
+.bench-row{display:flex;align-items:center;gap:10px;padding:4px 0}
+.bench-count{width:80px;color:#666}
+.bench-time{color:#0f0}
+.live-vector{display:flex;gap:1px;height:30px;align-items:end;margin:10px 0}
+.live-bar{width:3px;background:#0f0;transition:height 50ms}
+</style>
+</head>
+<body>
+
+<h1>Tiny Vector Embeddings</h1>
+<p class="subtitle">No model downloads. Pure JS. Microseconds per embed. Custom-built.</p>
+
+<div class="grid">
+
+  <!-- Text Embedding -->
+  <div class="section">
+    <h2>Text → Vector</h2>
+    <input type="text" id="text-input" placeholder="Type anything...">
+    <div class="vector-display" id="text-vector">Enter text to see vector</div>
+    <div class="meta" id="text-meta"></div>
+
+    <div style="margin-top:15px">
+      <h2 style="margin-bottom:8px">Similarity</h2>
+      <input type="text" id="text-compare" placeholder="Compare with...">
+      <div class="stat">
+        <span class="stat-label">Cosine Similarity</span>
+        <span class="stat-value" id="text-sim">-</span>
+      </div>
+      <div class="sim-bar"><div class="sim-fill" id="text-sim-bar" style="width:0"></div></div>
+    </div>
+  </div>
+
+  <!-- Behavioral Embedding -->
+  <div class="section">
+    <h2>Behavior → Vector</h2>
+    <p style="color:#444;font-size:9px;margin-bottom:10px">Move mouse to generate behavioral vector</p>
+    <div class="live-vector" id="live-vector"></div>
+    <div class="vector-display" id="behavior-vector">Waiting for mouse data...</div>
+    <div class="meta" id="behavior-meta"></div>
+  </div>
+
+  <!-- Fingerprint Embedding -->
+  <div class="section">
+    <h2>Browser → Vector</h2>
+    <button id="fingerprint-btn">Generate Fingerprint</button>
+    <div class="vector-display" id="fingerprint-vector">Click to generate</div>
+    <div class="meta" id="fingerprint-meta"></div>
+
+    <div style="margin-top:15px">
+      <div class="stat">
+        <span class="stat-label">Canvas Hash</span>
+        <span class="stat-value" id="fp-canvas">-</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">WebGL Hash</span>
+        <span class="stat-value" id="fp-webgl">-</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Audio Hash</span>
+        <span class="stat-value" id="fp-audio">-</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Screen Hash</span>
+        <span class="stat-value" id="fp-screen">-</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Benchmark -->
+  <div class="section">
+    <h2>Benchmark</h2>
+    <button id="bench-btn">Run Benchmark</button>
+    <div class="benchmark" id="benchmark"></div>
+
+    <div style="margin-top:20px">
+      <h2 style="margin-bottom:8px">Embedding Dimensions</h2>
+      <div class="stat">
+        <span class="stat-label">Text Embed</span>
+        <span class="stat-value">64 dims</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Behavior Embed</span>
+        <span class="stat-value">64 dims</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Fingerprint Embed</span>
+        <span class="stat-value">128 dims</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Combined Embed</span>
+        <span class="stat-value">256 dims</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ============================================
+// TINY EMBEDDING LIBRARY
+// No dependencies. Pure JavaScript.
+// ============================================
+
+const TinyEmbed = {
+  // Dimension sizes
+  TEXT_DIM: 64,
+  BEHAVIOR_DIM: 64,
+  FINGERPRINT_DIM: 128,
+
+  // Seed for deterministic random
+  seed: 42,
+
+  // Fast hash function (cyrb53)
+  hash(str, seed = 0) {
+    let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+    for (let i = 0; i < str.length; i++) {
+      const ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+    h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+    h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+  },
+
+  // Hash to float [0, 1)
+  hashFloat(str, seed = 0) {
+    return this.hash(str, seed) / 4294967296;
+  },
+
+  // Hash to float [-1, 1)
+  hashFloatSigned(str, seed = 0) {
+    return this.hashFloat(str, seed) * 2 - 1;
+  },
+
+  // ============================================
+  // TEXT EMBEDDING
+  // Uses character n-grams + hash projection
+  // ============================================
+  embedText(text, dim = this.TEXT_DIM) {
+    const start = performance.now();
+    const vector = new Float32Array(dim);
+    const normalized = text.toLowerCase().trim();
+
+    // Character-level features
+    for (let i = 0; i < normalized.length; i++) {
+      const char = normalized[i];
+      const idx = this.hash(char, i) % dim;
+      vector[idx] += this.hashFloatSigned(char, i + 1000);
+    }
+
+    // Bigram features
+    for (let i = 0; i < normalized.length - 1; i++) {
+      const bigram = normalized.slice(i, i + 2);
+      const idx = this.hash(bigram, 2000) % dim;
+      vector[idx] += this.hashFloatSigned(bigram, 2001) * 0.8;
+    }
+
+    // Trigram features
+    for (let i = 0; i < normalized.length - 2; i++) {
+      const trigram = normalized.slice(i, i + 3);
+      const idx = this.hash(trigram, 3000) % dim;
+      vector[idx] += this.hashFloatSigned(trigram, 3001) * 0.6;
+    }
+
+    // Word-level features
+    const words = normalized.split(/\s+/);
+    words.forEach((word, wi) => {
+      const idx = this.hash(word, 4000) % dim;
+      vector[idx] += this.hashFloatSigned(word, 4001 + wi) * 1.2;
+    });
+
+    // Normalize
+    this.normalize(vector);
+
+    return {
+      vector: Array.from(vector),
+      dim,
+      elapsed: performance.now() - start,
+      type: 'text'
+    };
+  },
+
+  // ============================================
+  // BEHAVIORAL EMBEDDING
+  // Mouse/scroll/timing patterns
+  // ============================================
+  embedBehavior(events, dim = this.BEHAVIOR_DIM) {
+    const start = performance.now();
+    const vector = new Float32Array(dim);
+
+    if (events.length < 5) {
+      return { vector: Array.from(vector), dim, elapsed: 0, type: 'behavior' };
+    }
+
+    // Velocity features (16 dims)
+    const velocities = [];
+    for (let i = 1; i < events.length; i++) {
+      const dx = events[i].x - events[i-1].x;
+      const dy = events[i].y - events[i-1].y;
+      const dt = events[i].t - events[i-1].t || 1;
+      velocities.push(Math.sqrt(dx*dx + dy*dy) / dt);
+    }
+    this.embedStats(velocities, vector, 0, 16);
+
+    // Acceleration features (16 dims)
+    const accelerations = [];
+    for (let i = 1; i < velocities.length; i++) {
+      accelerations.push(velocities[i] - velocities[i-1]);
+    }
+    this.embedStats(accelerations, vector, 16, 16);
+
+    // Angular features (16 dims)
+    const angles = [];
+    for (let i = 2; i < events.length; i++) {
+      const dx1 = events[i-1].x - events[i-2].x;
+      const dy1 = events[i-1].y - events[i-2].y;
+      const dx2 = events[i].x - events[i-1].x;
+      const dy2 = events[i].y - events[i-1].y;
+      angles.push(Math.atan2(dy2, dx2) - Math.atan2(dy1, dx1));
+    }
+    this.embedStats(angles, vector, 32, 16);
+
+    // Timing features (16 dims)
+    const intervals = [];
+    for (let i = 1; i < events.length; i++) {
+      intervals.push(events[i].t - events[i-1].t);
+    }
+    this.embedStats(intervals, vector, 48, 16);
+
+    this.normalize(vector);
+
+    return {
+      vector: Array.from(vector),
+      dim,
+      elapsed: performance.now() - start,
+      type: 'behavior'
+    };
+  },
+
+  // ============================================
+  // FINGERPRINT EMBEDDING
+  // Browser/device characteristics
+  // ============================================
+  async embedFingerprint(dim = this.FINGERPRINT_DIM) {
+    const start = performance.now();
+    const vector = new Float32Array(dim);
+    const hashes = {};
+
+    // Canvas fingerprint (32 dims)
+    const canvasHash = await this.canvasFingerprint();
+    hashes.canvas = canvasHash.slice(0, 8);
+    this.embedHash(canvasHash, vector, 0, 32);
+
+    // WebGL fingerprint (32 dims)
+    const webglHash = this.webglFingerprint();
+    hashes.webgl = webglHash.slice(0, 8);
+    this.embedHash(webglHash, vector, 32, 32);
+
+    // Audio fingerprint (32 dims)
+    const audioHash = await this.audioFingerprint();
+    hashes.audio = audioHash.slice(0, 8);
+    this.embedHash(audioHash, vector, 64, 32);
+
+    // Screen/hardware fingerprint (32 dims)
+    const screenHash = this.screenFingerprint();
+    hashes.screen = screenHash.slice(0, 8);
+    this.embedHash(screenHash, vector, 96, 32);
+
+    this.normalize(vector);
+
+    return {
+      vector: Array.from(vector),
+      dim,
+      elapsed: performance.now() - start,
+      type: 'fingerprint',
+      hashes
+    };
+  },
+
+  // ============================================
+  // HELPER METHODS
+  // ============================================
+
+  embedStats(arr, vector, offset, dims) {
+    if (!arr.length) return;
+
+    const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+    const variance = arr.reduce((s, v) => s + (v - mean) ** 2, 0) / arr.length;
+    const min = Math.min(...arr);
+    const max = Math.max(...arr);
+
+    vector[offset] = mean / 100;
+    vector[offset + 1] = Math.sqrt(variance) / 100;
+    vector[offset + 2] = min / 100;
+    vector[offset + 3] = max / 100;
+
+    // Histogram (remaining dims)
+    const histDims = dims - 4;
+    const range = max - min || 1;
+    arr.forEach(v => {
+      const bin = Math.min(histDims - 1, Math.floor((v - min) / range * histDims));
+      vector[offset + 4 + bin] += 1 / arr.length;
+    });
+  },
+
+  embedHash(hash, vector, offset, dims) {
+    for (let i = 0; i < dims; i++) {
+      vector[offset + i] = this.hashFloatSigned(hash, i);
+    }
+  },
+
+  normalize(vector) {
+    let norm = 0;
+    for (let i = 0; i < vector.length; i++) {
+      norm += vector[i] * vector[i];
+    }
+    norm = Math.sqrt(norm) || 1;
+    for (let i = 0; i < vector.length; i++) {
+      vector[i] /= norm;
+    }
+  },
+
+  cosine(a, b) {
+    let dot = 0;
+    for (let i = 0; i < a.length; i++) {
+      dot += a[i] * b[i];
+    }
+    return dot; // Already normalized
+  },
+
+  // ============================================
+  // FINGERPRINT HELPERS
+  // ============================================
+
+  async canvasFingerprint() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 200;
+    canvas.height = 50;
+    const ctx = canvas.getContext('2d');
+
+    ctx.textBaseline = 'top';
+    ctx.font = '14px Arial';
+    ctx.fillStyle = '#f60';
+    ctx.fillRect(125, 1, 62, 20);
+    ctx.fillStyle = '#069';
+    ctx.fillText('TinyEmbed', 2, 15);
+    ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+    ctx.fillText('vector', 4, 17);
+
+    return this.hash(canvas.toDataURL()).toString(16);
+  },
+
+  webglFingerprint() {
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl');
+      if (!gl) return 'no-webgl';
+
+      const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+      const data = [
+        gl.getParameter(gl.VENDOR),
+        gl.getParameter(gl.RENDERER),
+        debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : '',
+        gl.getParameter(gl.VERSION)
+      ].join('|');
+
+      return this.hash(data).toString(16);
+    } catch {
+      return 'webgl-error';
+    }
+  },
+
+  async audioFingerprint() {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AudioContext();
+      const oscillator = ctx.createOscillator();
+      const analyser = ctx.createAnalyser();
+      const gain = ctx.createGain();
+
+      oscillator.type = 'triangle';
+      oscillator.frequency.value = 10000;
+      gain.gain.value = 0;
+
+      oscillator.connect(analyser);
+      analyser.connect(gain);
+      gain.connect(ctx.destination);
+
+      oscillator.start(0);
+      const data = new Float32Array(analyser.frequencyBinCount);
+      analyser.getFloatFrequencyData(data);
+      oscillator.stop();
+      ctx.close();
+
+      return this.hash(Array.from(data.slice(0, 30)).join(',')).toString(16);
+    } catch {
+      return 'audio-error';
+    }
+  },
+
+  screenFingerprint() {
+    const data = [
+      screen.width,
+      screen.height,
+      screen.colorDepth,
+      window.devicePixelRatio,
+      navigator.hardwareConcurrency,
+      navigator.maxTouchPoints,
+      navigator.language,
+      Intl.DateTimeFormat().resolvedOptions().timeZone
+    ].join('|');
+
+    return this.hash(data).toString(16);
+  }
+};
+
+// ============================================
+// UI
+// ============================================
+
+// Text embedding
+let lastTextVector = null;
+document.getElementById('text-input').addEventListener('input', (e) => {
+  const text = e.target.value;
+  if (!text) {
+    document.getElementById('text-vector').textContent = 'Enter text to see vector';
+    document.getElementById('text-meta').textContent = '';
+    return;
+  }
+
+  const result = TinyEmbed.embedText(text);
+  lastTextVector = result.vector;
+
+  document.getElementById('text-vector').textContent =
+    '[' + result.vector.slice(0, 12).map(v => v.toFixed(4)).join(', ') + ', ...]';
+  document.getElementById('text-meta').textContent =
+    `${result.dim} dims | ${result.elapsed.toFixed(3)}ms | ${(1000/result.elapsed).toFixed(0)} embeds/sec`;
+
+  updateSimilarity();
+});
+
+document.getElementById('text-compare').addEventListener('input', updateSimilarity);
+
+function updateSimilarity() {
+  const compareText = document.getElementById('text-compare').value;
+  if (!lastTextVector || !compareText) {
+    document.getElementById('text-sim').textContent = '-';
+    document.getElementById('text-sim-bar').style.width = '0';
+    return;
+  }
+
+  const compareResult = TinyEmbed.embedText(compareText);
+  const sim = TinyEmbed.cosine(lastTextVector, compareResult.vector);
+  const pct = ((sim + 1) / 2 * 100);
+
+  document.getElementById('text-sim').textContent = (sim * 100).toFixed(1) + '%';
+  document.getElementById('text-sim-bar').style.width = pct + '%';
+}
+
+// Behavioral embedding
+let mouseBuffer = [];
+document.addEventListener('mousemove', (e) => {
+  mouseBuffer.push({ x: e.clientX, y: e.clientY, t: performance.now() });
+  if (mouseBuffer.length > 100) mouseBuffer.shift();
+
+  if (mouseBuffer.length >= 10) {
+    const result = TinyEmbed.embedBehavior(mouseBuffer);
+
+    // Live visualization
+    const viz = document.getElementById('live-vector');
+    viz.innerHTML = result.vector.slice(0, 32).map(v =>
+      `<div class="live-bar" style="height:${Math.abs(v) * 30}px"></div>`
+    ).join('');
+
+    document.getElementById('behavior-vector').textContent =
+      '[' + result.vector.slice(0, 12).map(v => v.toFixed(4)).join(', ') + ', ...]';
+    document.getElementById('behavior-meta').textContent =
+      `${result.dim} dims | ${result.elapsed.toFixed(3)}ms | ${mouseBuffer.length} events`;
+  }
+});
+
+// Fingerprint embedding
+document.getElementById('fingerprint-btn').addEventListener('click', async () => {
+  document.getElementById('fingerprint-vector').textContent = 'Generating...';
+
+  const result = await TinyEmbed.embedFingerprint();
+
+  document.getElementById('fingerprint-vector').textContent =
+    '[' + result.vector.slice(0, 12).map(v => v.toFixed(4)).join(', ') + ', ...]';
+  document.getElementById('fingerprint-meta').textContent =
+    `${result.dim} dims | ${result.elapsed.toFixed(1)}ms`;
+
+  document.getElementById('fp-canvas').textContent = result.hashes.canvas;
+  document.getElementById('fp-webgl').textContent = result.hashes.webgl;
+  document.getElementById('fp-audio').textContent = result.hashes.audio;
+  document.getElementById('fp-screen').textContent = result.hashes.screen;
+});
+
+// Benchmark
+document.getElementById('bench-btn').addEventListener('click', () => {
+  const container = document.getElementById('benchmark');
+  container.innerHTML = '<div style="color:#ff0">Running...</div>';
+
+  setTimeout(() => {
+    const results = [];
+
+    // Text benchmark
+    [100, 1000, 10000].forEach(n => {
+      const start = performance.now();
+      for (let i = 0; i < n; i++) {
+        TinyEmbed.embedText('The quick brown fox jumps over the lazy dog');
+      }
+      const elapsed = performance.now() - start;
+      results.push({ type: 'Text', count: n, time: elapsed, rate: (n / elapsed * 1000).toFixed(0) });
+    });
+
+    // Behavior benchmark
+    const fakeEvents = Array(50).fill(0).map((_, i) => ({
+      x: Math.random() * 1000,
+      y: Math.random() * 800,
+      t: i * 16
+    }));
+
+    [100, 1000, 10000].forEach(n => {
+      const start = performance.now();
+      for (let i = 0; i < n; i++) {
+        TinyEmbed.embedBehavior(fakeEvents);
+      }
+      const elapsed = performance.now() - start;
+      results.push({ type: 'Behavior', count: n, time: elapsed, rate: (n / elapsed * 1000).toFixed(0) });
+    });
+
+    container.innerHTML = results.map(r => `
+      <div class="bench-row">
+        <span class="bench-count">${r.type} x${r.count}</span>
+        <span class="bench-time">${r.time.toFixed(1)}ms (${r.rate}/sec)</span>
+      </div>
+    `).join('');
+  }, 100);
+});
+</script>
+
+</body>
+</html>
