@@ -1,4 +1,421 @@
 <!DOCTYPE html>
-<html><head><meta charset="UTF-8"></head>
-<body><script type="module" src="gate.js"></script></body>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+/* ========================================
+   LAYER 0: CSS GATES
+   Runs before JavaScript. Harder to fake.
+   Sets CSS custom properties for JS to read.
+   ======================================== */
+
+:root {
+  /* Gate state variables - JS reads these */
+  --css-time-gate: 0;
+  --css-hover-gate: 0;
+  --css-scroll-gate: 0;
+  --css-click-gate: 0;
+  --css-focus-gate: 0;
+  --css-checkbox-gate: 0;
+
+  /* Media fingerprint - JS reads these */
+  --has-hover: 0;
+  --has-pointer: 0;
+  --prefers-dark: 0;
+  --allows-motion: 0;
+  --is-hidpi: 0;
+  --has-p3: 0;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #0a0a0a;
+  color: #888;
+  font-family: system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+}
+
+/* ========================================
+   TIME GATE
+   Page must exist for 2s before revealing
+   ======================================== */
+
+.layer-0 {
+  opacity: 0;
+  animation: css-time-gate 0.3s ease-out 2s forwards;
+}
+
+@keyframes css-time-gate {
+  to {
+    opacity: 1;
+    --css-time-gate: 1;
+  }
+}
+
+/* Status indicator */
+.layer-0::before {
+  content: '';
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  width: 8px;
+  height: 8px;
+  background: #222;
+  border-radius: 50%;
+  animation: css-time-indicator 0.1s ease-out 2s forwards;
+  z-index: 9999;
+}
+
+@keyframes css-time-indicator {
+  to { background: #0f0; box-shadow: 0 0 10px #0f04; }
+}
+
+/* ========================================
+   CSS GATE PANEL
+   Interactive gates on the left side
+   ======================================== */
+
+.css-gate-panel {
+  position: fixed;
+  top: 30px;
+  left: 10px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 10px;
+}
+
+/* Gate row styling */
+.css-gate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.css-gate-label {
+  color: #333;
+  width: 60px;
+}
+
+.css-gate-input {
+  display: flex;
+  gap: 4px;
+}
+
+.css-node {
+  width: 20px;
+  height: 20px;
+  background: #111;
+  border: 1px solid #222;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.css-node:hover {
+  background: #0f01;
+  border-color: #0f04;
+  color: #0f0;
+}
+
+.css-status {
+  width: 8px;
+  height: 8px;
+  background: #222;
+  border-radius: 50%;
+  transition: all 0.3s;
+}
+
+/* ========================================
+   HOVER SEQUENCE GATE
+   Must hover 1 → 2 → 3 in order
+   ======================================== */
+
+.hover-gate .h2,
+.hover-gate .h3 {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.hover-gate .h1:hover { background: #0f02; border-color: #0f0; color: #0f0; }
+.hover-gate .h1:hover ~ .h2 { opacity: 1; pointer-events: auto; }
+.hover-gate .h2:hover { background: #0f02; border-color: #0f0; color: #0f0; }
+.hover-gate .h2:hover ~ .h3 { opacity: 1; pointer-events: auto; }
+.hover-gate .h3:hover { background: #0f02; border-color: #0f0; color: #0f0; }
+.hover-gate .h3:hover ~ .css-status { background: #0f0; box-shadow: 0 0 8px #0f04; }
+
+/* ========================================
+   CLICK HOLD GATE
+   Must click and hold for 1 second
+   ======================================== */
+
+.click-gate .click-target {
+  width: 60px;
+  height: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.click-gate .click-target::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0;
+  background: #0f02;
+  transition: width 1s linear;
+}
+
+.click-gate .click-target:active::after { width: 100%; }
+.click-gate .click-target:active { border-color: #0f0; }
+.click-gate .click-target:active ~ .css-status {
+  animation: click-confirm 0.1s ease-out 1s forwards;
+}
+
+@keyframes click-confirm {
+  to { background: #0f0; box-shadow: 0 0 8px #0f04; }
+}
+
+/* ========================================
+   CHECKBOX GATE
+   All three must be checked
+   ======================================== */
+
+.checkbox-gate input { display: none; }
+
+.checkbox-gate label {
+  width: 20px;
+  height: 20px;
+  background: #111;
+  border: 1px solid #222;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.checkbox-gate input:checked + label {
+  background: #0f02;
+  border-color: #0f0;
+  color: #0f0;
+}
+
+.checkbox-gate #cb1:checked ~ #cb2:checked ~ #cb3:checked ~ .css-status {
+  background: #0f0;
+  box-shadow: 0 0 8px #0f04;
+}
+
+/* ========================================
+   FOCUS/TAB GATE
+   Must tab through all nodes
+   ======================================== */
+
+.focus-gate button {
+  background: #111;
+  border: 1px solid #222;
+  outline: none;
+  cursor: pointer;
+}
+
+.focus-gate button:focus {
+  background: #0f02;
+  border-color: #0f0;
+  box-shadow: 0 0 4px #0f04;
+}
+
+.focus-gate button:nth-child(4):focus ~ .css-status {
+  background: #0f0;
+  box-shadow: 0 0 8px #0f04;
+}
+
+/* ========================================
+   MEDIA FINGERPRINT
+   Auto-detects via @media queries
+   ======================================== */
+
+.media-signals {
+  display: flex;
+  gap: 4px;
+}
+
+.media-dot {
+  width: 8px;
+  height: 8px;
+  background: #222;
+  border-radius: 50%;
+  transition: all 0.3s;
+}
+
+@media (hover: hover) {
+  :root { --has-hover: 1; }
+  .media-dot.hover { background: #0f0; }
+}
+
+@media (pointer: fine) {
+  :root { --has-pointer: 1; }
+  .media-dot.pointer { background: #0f0; }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root { --prefers-dark: 1; }
+  .media-dot.dark { background: #0f0; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root { --allows-motion: 1; }
+  .media-dot.motion { background: #0f0; }
+}
+
+@media (min-resolution: 2dppx) {
+  :root { --is-hidpi: 1; }
+  .media-dot.hidpi { background: #0f0; }
+}
+
+@media (color-gamut: p3) {
+  :root { --has-p3: 1; }
+  .media-dot.p3 { background: #0f0; }
+}
+
+/* ========================================
+   SCROLL GATE
+   Uses scroll-driven animations
+   ======================================== */
+
+.scroll-indicator {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  width: 60px;
+  height: 4px;
+  background: #111;
+  border: 1px solid #222;
+  overflow: hidden;
+  z-index: 9999;
+}
+
+.scroll-bar {
+  height: 100%;
+  width: 0%;
+  background: #0f0;
+  animation: scroll-progress linear forwards;
+  animation-timeline: scroll(root);
+}
+
+@keyframes scroll-progress {
+  to { width: 100%; }
+}
+
+/* ========================================
+   CONTENT AREA
+   Where app.js will mount
+   ======================================== */
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#app::before {
+  content: 'Layer 0 Active...';
+  font-size: 12px;
+  color: #222;
+  animation: loading-text 0.5s ease-out 2s forwards;
+}
+
+@keyframes loading-text {
+  to { color: #333; content: 'Initializing...'; }
+}
+</style>
+</head>
+<body>
+<div class="layer-0">
+
+  <!-- CSS Gate Panel -->
+  <div class="css-gate-panel">
+
+    <!-- Hover Gate -->
+    <div class="css-gate hover-gate">
+      <span class="css-gate-label">HOVER</span>
+      <div class="css-gate-input">
+        <div class="css-node h1">1</div>
+        <div class="css-node h2">2</div>
+        <div class="css-node h3">3</div>
+      </div>
+      <div class="css-status"></div>
+    </div>
+
+    <!-- Click Gate -->
+    <div class="css-gate click-gate">
+      <span class="css-gate-label">HOLD</span>
+      <div class="css-gate-input">
+        <div class="css-node click-target">1s</div>
+      </div>
+      <div class="css-status"></div>
+    </div>
+
+    <!-- Checkbox Gate -->
+    <div class="css-gate checkbox-gate">
+      <span class="css-gate-label">CHECK</span>
+      <div class="css-gate-input">
+        <input type="checkbox" id="cb1"><label for="cb1">+</label>
+        <input type="checkbox" id="cb2"><label for="cb2">+</label>
+        <input type="checkbox" id="cb3"><label for="cb3">+</label>
+      </div>
+      <div class="css-status"></div>
+    </div>
+
+    <!-- Focus Gate -->
+    <div class="css-gate focus-gate">
+      <span class="css-gate-label">TAB</span>
+      <div class="css-gate-input">
+        <button class="css-node" tabindex="1"></button>
+        <button class="css-node" tabindex="2"></button>
+        <button class="css-node" tabindex="3"></button>
+        <button class="css-node" tabindex="4"></button>
+      </div>
+      <div class="css-status"></div>
+    </div>
+
+    <!-- Media Fingerprint -->
+    <div class="css-gate">
+      <span class="css-gate-label">MEDIA</span>
+      <div class="media-signals">
+        <div class="media-dot hover" title="hover"></div>
+        <div class="media-dot pointer" title="pointer"></div>
+        <div class="media-dot dark" title="dark"></div>
+        <div class="media-dot motion" title="motion"></div>
+        <div class="media-dot hidpi" title="hidpi"></div>
+        <div class="media-dot p3" title="p3"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Scroll Indicator -->
+  <div class="scroll-indicator">
+    <div class="scroll-bar"></div>
+  </div>
+
+  <!-- App Mount Point -->
+  <div id="app"></div>
+
+</div>
+
+<!-- Layer 1: JavaScript Gate (loads after CSS time gate) -->
+<script type="module" src="gate.js"></script>
+
+</body>
 </html>

@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSS Gates</title>
+<style>
+/* ========================================
+   LAYER 0: THE CSS GATES
+   Works without JavaScript. Harder to fake.
+   ======================================== */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --gate-passed: 0;
+  --hover-count: 0;
+  --scroll-progress: 0;
+  --human-proof: #0f0;
+  --bot-color: #f00;
+  --bg: #0a0a0a;
+  --fg: #888;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, sans-serif;
+  min-height: 300vh; /* For scroll detection */
+  overflow-x: hidden;
+}
+
+/* ========================================
+   GATE 1: TIME GATE
+   Content fades in only after 2 seconds.
+   Bots that snapshot immediately miss it.
+   ======================================== */
+
+.time-gate {
+  opacity: 0;
+  animation: time-reveal 0.5s ease-out 2s forwards;
+}
+
+@keyframes time-reveal {
+  to { opacity: 1; }
+}
+
+.time-gate::before {
+  content: 'TIME GATE: Wait...';
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  font-size: 10px;
+  color: #333;
+  animation: time-label 0.1s ease-out 2s forwards;
+}
+
+@keyframes time-label {
+  to { content: 'TIME GATE: PASSED'; color: var(--human-proof); }
+}
+
+/* ========================================
+   GATE 2: HOVER SEQUENCE GATE
+   Must hover in correct order: 1 → 2 → 3
+   Uses CSS :hover propagation trick
+   ======================================== */
+
+.hover-gate {
+  position: fixed;
+  top: 60px;
+  left: 20px;
+  display: flex;
+  gap: 8px;
+  z-index: 100;
+}
+
+.hover-gate::before {
+  content: 'HOVER GATE: Touch 1→2→3';
+  position: absolute;
+  top: -20px;
+  font-size: 10px;
+  color: #333;
+  white-space: nowrap;
+}
+
+.hover-node {
+  width: 30px;
+  height: 30px;
+  background: #111;
+  border: 1px solid #222;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #444;
+  transition: all 0.3s;
+  cursor: pointer;
+}
+
+/* The trick: nested elements that reveal on parent hover */
+.hover-chain {
+  display: flex;
+  gap: 8px;
+}
+
+.hover-chain .h1 { opacity: 1; }
+.hover-chain .h2 { opacity: 0.3; pointer-events: none; }
+.hover-chain .h3 { opacity: 0.3; pointer-events: none; }
+.hover-chain .h-reward { opacity: 0; width: 0; overflow: hidden; }
+
+.hover-chain .h1:hover { background: #0f02; border-color: #0f04; color: #0f0; }
+.hover-chain .h1:hover ~ .h2 { opacity: 1; pointer-events: auto; }
+
+.hover-chain .h2:hover { background: #0f02; border-color: #0f04; color: #0f0; }
+.hover-chain .h2:hover ~ .h3 { opacity: 1; pointer-events: auto; }
+
+.hover-chain .h3:hover { background: #0f02; border-color: #0f04; color: #0f0; }
+.hover-chain .h3:hover ~ .h-reward {
+  opacity: 1;
+  width: auto;
+  padding: 0 12px;
+  background: #0f01;
+  border-color: #0f0;
+  color: #0f0;
+}
+
+/* ========================================
+   GATE 3: CLICK GATE (CSS :active)
+   Must click and hold - bots often just "click"
+   ======================================== */
+
+.click-gate {
+  position: fixed;
+  top: 110px;
+  left: 20px;
+  z-index: 100;
+}
+
+.click-gate::before {
+  content: 'CLICK GATE: Hold for 1s';
+  display: block;
+  font-size: 10px;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.click-target {
+  width: 120px;
+  height: 30px;
+  background: #111;
+  border: 1px solid #222;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #444;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.click-target::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0;
+  background: #0f02;
+  transition: width 1s linear;
+}
+
+.click-target:active::after {
+  width: 100%;
+}
+
+.click-target:active {
+  border-color: #0f04;
+}
+
+.click-reward {
+  opacity: 0;
+  margin-left: 10px;
+  font-size: 10px;
+  color: #0f0;
+  transition: opacity 0.3s;
+}
+
+.click-target:active ~ .click-reward {
+  opacity: 1;
+  animation: click-confirm 0.1s ease-out 1s forwards;
+}
+
+@keyframes click-confirm {
+  to { opacity: 1; }
+}
+
+/* ========================================
+   GATE 4: SCROLL GATE
+   Content reveals as you scroll.
+   Uses scroll-driven animations (modern browsers)
+   ======================================== */
+
+.scroll-gate {
+  position: fixed;
+  top: 160px;
+  left: 20px;
+  z-index: 100;
+}
+
+.scroll-gate::before {
+  content: 'SCROLL GATE: Scroll down';
+  display: block;
+  font-size: 10px;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.scroll-progress {
+  width: 120px;
+  height: 6px;
+  background: #111;
+  border: 1px solid #222;
+  overflow: hidden;
+}
+
+.scroll-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #0f0, #0ff);
+  animation: scroll-fill linear forwards;
+  animation-timeline: scroll(root);
+}
+
+@keyframes scroll-fill {
+  to { width: 100%; }
+}
+
+.scroll-reward {
+  position: fixed;
+  bottom: 50%;
+  left: 50%;
+  transform: translate(-50%, 50%);
+  font-size: 24px;
+  color: #0f0;
+  opacity: 0;
+  animation: scroll-reveal linear forwards;
+  animation-timeline: scroll(root);
+  animation-range: 80% 100%;
+  pointer-events: none;
+}
+
+@keyframes scroll-reveal {
+  to { opacity: 1; }
+}
+
+/* ========================================
+   GATE 5: INVISIBLE INK
+   Content only visible on hover/interaction
+   ======================================== */
+
+.ink-gate {
+  position: fixed;
+  top: 210px;
+  left: 20px;
+  z-index: 100;
+}
+
+.ink-gate::before {
+  content: 'INK GATE: Find the secret';
+  display: block;
+  font-size: 10px;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.invisible-ink {
+  width: 120px;
+  height: 40px;
+  background: #111;
+  border: 1px solid #222;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: crosshair;
+  position: relative;
+  overflow: hidden;
+}
+
+.ink-text {
+  font-size: 11px;
+  color: #111; /* Same as background - invisible */
+  transition: color 0.5s;
+  user-select: none;
+}
+
+.invisible-ink:hover .ink-text {
+  color: #0f0;
+}
+
+/* Reveal on selection attempt (interesting detection) */
+.invisible-ink::selection,
+.ink-text::selection {
+  background: #0f0;
+  color: #000;
+}
+
+/* ========================================
+   GATE 6: CSS MAZE
+   Must navigate hover through the correct path
+   ======================================== */
+
+.maze-gate {
+  position: fixed;
+  top: 280px;
+  left: 20px;
+  z-index: 100;
+}
+
+.maze-gate::before {
+  content: 'MAZE GATE: Navigate → → ↓ ↓';
+  display: block;
+  font-size: 10px;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.maze {
+  display: grid;
+  grid-template-columns: repeat(4, 24px);
+  grid-template-rows: repeat(3, 24px);
+  gap: 2px;
+  background: #111;
+  padding: 4px;
+  border: 1px solid #222;
+}
+
+.maze-cell {
+  background: #0a0a0a;
+  border: 1px solid #1a1a1a;
+  transition: all 0.15s;
+}
+
+.maze-cell.path {
+  cursor: pointer;
+}
+
+.maze-cell.wall {
+  background: #1a1a1a;
+}
+
+.maze-cell.start {
+  background: #00f1;
+  border-color: #00f4;
+}
+
+.maze-cell.end {
+  background: #1a1a1a;
+}
+
+/* Maze solution: Start(0,0) → (1,0) → (2,0) → (2,1) → (2,2) */
+.maze-cell.path:hover {
+  background: #0f01;
+  border-color: #0f04;
+}
+
+/* Chain hover detection using CSS grid areas and siblings */
+.maze-row {
+  display: contents;
+}
+
+/* Row 0 */
+.maze .c00:hover { background: #0f02; border-color: #0f0; }
+.maze .c00:hover ~ .c10 { background: #0f01; border-color: #0f04; }
+.maze .c10:hover { background: #0f02; border-color: #0f0; }
+.maze .c10:hover ~ .c20 { background: #0f01; border-color: #0f04; }
+.maze .c20:hover { background: #0f02; border-color: #0f0; }
+
+/* The reward - only shows when hovering the final cell in sequence */
+.maze-reward {
+  opacity: 0;
+  grid-column: span 4;
+  text-align: center;
+  font-size: 9px;
+  color: #0f0;
+  padding: 4px;
+  transition: opacity 0.3s;
+}
+
+.maze .c22:hover ~ .maze-reward {
+  opacity: 1;
+}
+
+/* ========================================
+   GATE 7: CHECKBOX GATE (No JS state)
+   Must check boxes in order - pure CSS state
+   ======================================== */
+
+.checkbox-gate {
+  position: fixed;
+  top: 400px;
+  left: 20px;
+  z-index: 100;
+}
+
+.checkbox-gate > label:first-of-type::before {
+  content: 'CHECKBOX GATE: Check all ✓';
+  display: block;
+  font-size: 10px;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.cb-input {
+  display: none;
+}
+
+.cb-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: #111;
+  border: 1px solid #222;
+  margin-right: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  color: #333;
+  transition: all 0.2s;
+}
+
+.cb-input:checked + .cb-label {
+  background: #0f02;
+  border-color: #0f0;
+  color: #0f0;
+}
+
+.cb-reward {
+  display: none;
+  margin-left: 8px;
+  font-size: 10px;
+  color: #0f0;
+}
+
+/* All checked = show reward */
+#cb1:checked ~ #cb2:checked ~ #cb3:checked ~ .cb-reward {
+  display: inline;
+}
+
+/* ========================================
+   GATE 8: FOCUS GATE
+   Must tab through in correct order
+   ======================================== */
+
+.focus-gate {
+  position: fixed;
+  top: 460px;
+  left: 20px;
+  z-index: 100;
+}
+
+.focus-gate::before {
+  content: 'FOCUS GATE: Tab through →';
+  display: block;
+  font-size: 10px;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.focus-chain {
+  display: flex;
+  gap: 4px;
+}
+
+.focus-node {
+  width: 24px;
+  height: 24px;
+  background: #111;
+  border: 1px solid #222;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.focus-node:focus {
+  background: #0f02;
+  border-color: #0f0;
+  box-shadow: 0 0 8px #0f04;
+}
+
+.focus-reward {
+  opacity: 0;
+  font-size: 10px;
+  color: #0f0;
+  margin-left: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.focus-node:nth-child(4):focus ~ .focus-reward {
+  opacity: 1;
+}
+
+/* ========================================
+   GATE 9: MEDIA QUERY FINGERPRINT
+   Detects capabilities via CSS
+   ======================================== */
+
+.media-gate {
+  position: fixed;
+  top: 520px;
+  left: 20px;
+  z-index: 100;
+  font-size: 10px;
+}
+
+.media-gate::before {
+  content: 'MEDIA GATE: Detected features';
+  display: block;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.media-signals {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.media-signal {
+  display: none;
+  color: #0f0;
+}
+
+/* Feature detection via @media */
+@media (hover: hover) {
+  .media-signal.has-hover { display: block; }
+}
+
+@media (pointer: fine) {
+  .media-signal.has-pointer { display: block; }
+}
+
+@media (prefers-color-scheme: dark) {
+  .media-signal.prefers-dark { display: block; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .media-signal.allows-motion { display: block; }
+}
+
+@media (min-resolution: 2dppx) {
+  .media-signal.hidpi { display: block; }
+}
+
+@media (color-gamut: p3) {
+  .media-signal.wide-gamut { display: block; }
+}
+
+/* ========================================
+   MAIN CONTENT (GATED)
+   Only visible after time gate passes
+   ======================================== */
+
+.gated-content {
+  padding: 40px 20px;
+  padding-left: 180px;
+  max-width: 900px;
+}
+
+.gated-content h1 {
+  font-size: 28px;
+  color: #fff;
+  font-weight: 300;
+  margin-bottom: 20px;
+}
+
+.gated-content p {
+  color: #555;
+  font-size: 13px;
+  line-height: 1.8;
+  margin-bottom: 20px;
+}
+
+.status-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background: #0a0a0a;
+  border-top: 1px solid #1a1a1a;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  font-size: 10px;
+  color: #333;
+  z-index: 1000;
+}
+
+.status-item {
+  margin-right: 20px;
+}
+
+.status-item.passed {
+  color: #0f0;
+}
+</style>
+</head>
+<body>
+
+<!-- GATE 1: Time Gate -->
+<div class="time-gate">
+
+  <!-- GATE 2: Hover Sequence -->
+  <div class="hover-gate">
+    <div class="hover-chain">
+      <div class="hover-node h1">1</div>
+      <div class="hover-node h2">2</div>
+      <div class="hover-node h3">3</div>
+      <div class="hover-node h-reward">✓</div>
+    </div>
+  </div>
+
+  <!-- GATE 3: Click Hold -->
+  <div class="click-gate">
+    <div style="display:flex;align-items:center">
+      <div class="click-target">HOLD</div>
+      <span class="click-reward">✓ PASSED</span>
+    </div>
+  </div>
+
+  <!-- GATE 4: Scroll -->
+  <div class="scroll-gate">
+    <div class="scroll-progress">
+      <div class="scroll-progress-bar"></div>
+    </div>
+  </div>
+  <div class="scroll-reward">SCROLL GATE PASSED</div>
+
+  <!-- GATE 5: Invisible Ink -->
+  <div class="ink-gate">
+    <div class="invisible-ink">
+      <span class="ink-text">SECRET: 0x7F3A</span>
+    </div>
+  </div>
+
+  <!-- GATE 6: Maze -->
+  <div class="maze-gate">
+    <div class="maze">
+      <div class="maze-cell path start c00"></div>
+      <div class="maze-cell path c10"></div>
+      <div class="maze-cell path c20"></div>
+      <div class="maze-cell wall"></div>
+      <div class="maze-cell wall"></div>
+      <div class="maze-cell wall"></div>
+      <div class="maze-cell path c21"></div>
+      <div class="maze-cell wall"></div>
+      <div class="maze-cell wall"></div>
+      <div class="maze-cell wall"></div>
+      <div class="maze-cell path c22"></div>
+      <div class="maze-cell wall"></div>
+      <div class="maze-reward">✓ MAZE COMPLETE</div>
+    </div>
+  </div>
+
+  <!-- GATE 7: Checkbox -->
+  <div class="checkbox-gate">
+    <input type="checkbox" id="cb1" class="cb-input">
+    <label for="cb1" class="cb-label">1</label>
+    <input type="checkbox" id="cb2" class="cb-input">
+    <label for="cb2" class="cb-label">2</label>
+    <input type="checkbox" id="cb3" class="cb-input">
+    <label for="cb3" class="cb-label">3</label>
+    <span class="cb-reward">✓ ALL CHECKED</span>
+  </div>
+
+  <!-- GATE 8: Focus/Tab -->
+  <div class="focus-gate">
+    <div class="focus-chain">
+      <button class="focus-node" tabindex="1"></button>
+      <button class="focus-node" tabindex="2"></button>
+      <button class="focus-node" tabindex="3"></button>
+      <button class="focus-node" tabindex="4"></button>
+      <span class="focus-reward">✓ TABBED</span>
+    </div>
+  </div>
+
+  <!-- GATE 9: Media Fingerprint -->
+  <div class="media-gate">
+    <div class="media-signals">
+      <span class="media-signal has-hover">hover: hover</span>
+      <span class="media-signal has-pointer">pointer: fine</span>
+      <span class="media-signal prefers-dark">prefers: dark</span>
+      <span class="media-signal allows-motion">motion: allowed</span>
+      <span class="media-signal hidpi">resolution: 2x+</span>
+      <span class="media-signal wide-gamut">gamut: p3</span>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="gated-content">
+    <h1>CSS Gates: Layer 0</h1>
+    <p>
+      This page contains 9 CSS-only gates that work without JavaScript.
+      They test timing, interaction patterns, navigation ability, and
+      environmental capabilities. Bots that disable JS or intercept it
+      still face these challenges.
+    </p>
+    <p>
+      The gates on the left side demonstrate pure CSS human verification:
+      time delays, hover sequences, click-and-hold, scroll tracking,
+      invisible ink reveals, maze navigation, checkbox state, focus chains,
+      and media query fingerprinting.
+    </p>
+    <p>
+      Scroll down to complete the scroll gate...
+    </p>
+    <div style="height: 150vh"></div>
+    <p style="text-align:center;color:#0f0;font-size:20px">
+      You have reached the bottom. Scroll gate complete.
+    </p>
+  </div>
+
+</div>
+
+<!-- Status Bar -->
+<div class="status-bar">
+  <span class="status-item">CSS GATES: 9</span>
+  <span class="status-item">NO JAVASCRIPT</span>
+  <span class="status-item">LAYER 0</span>
+</div>
+
+</body>
+</html>

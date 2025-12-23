@@ -16,6 +16,8 @@ let state = {
   attestations: [],
   unlocked: [],
   signals: {},
+  cssSignals: {},
+  cssGatesCompleted: [],
   initialized: false
 };
 
@@ -97,6 +99,10 @@ self.addEventListener('message', async (event) => {
       await handleAttest(event.source, payload);
       break;
 
+    case 'css-gate-complete':
+      await handleCSSGateComplete(event.source, payload);
+      break;
+
     case 'get-state':
       event.source.postMessage({ type: 'state', payload: getPublicState() });
       break;
@@ -104,13 +110,21 @@ self.addEventListener('message', async (event) => {
 });
 
 async function handleInit(client, payload) {
-  const { vector, organic, signals, timestamp } = payload;
+  const { vector, organic, signals, cssSignals, timestamp } = payload;
 
   // Store initial state
   state.vector = new Float32Array(vector);
   state.organic = organic;
   state.signals = signals || {};
+  state.cssSignals = cssSignals || {};
   state.initialized = true;
+
+  // Boost organic score based on CSS media signals
+  // More detected features = more likely human with real browser
+  if (cssSignals?.mediaCount) {
+    const cssBoost = cssSignals.mediaCount * 0.02; // Up to 0.12 for 6 features
+    state.organic = Math.min(1, state.organic + cssBoost);
+  }
 
   // Record attestation
   state.attestations.push({
@@ -213,6 +227,51 @@ async function handleAttest(client, payload) {
   client.postMessage({
     type: 'state',
     payload: getPublicState()
+  });
+}
+
+/**
+ * Handle CSS gate completion events from Layer 0
+ */
+async function handleCSSGateComplete(client, payload) {
+  const { gate, timestamp } = payload;
+
+  // Avoid duplicate processing
+  if (state.cssGatesCompleted.includes(gate)) return;
+
+  state.cssGatesCompleted.push(gate);
+
+  // Each CSS gate completion boosts organic score
+  const boosts = {
+    hover: 0.03,     // Completed hover sequence
+    click: 0.03,     // Held click for 1s
+    checkbox: 0.02,  // Checked all boxes
+    scroll: 0.02,    // Scrolled to 80%
+    focus: 0.02      // Tabbed through all nodes
+  };
+
+  const boost = boosts[gate] || 0.01;
+  state.organic = Math.min(1, state.organic + boost);
+
+  // Record attestation
+  state.attestations.push({
+    type: `css-${gate}`,
+    timestamp: timestamp || Date.now(),
+    boost
+  });
+
+  updateStage();
+
+  // Notify client
+  const newUnlocks = getNewUnlocks();
+  client.postMessage({
+    type: 'unlock',
+    payload: {
+      features: newUnlocks,
+      organic: state.organic,
+      stage: state.stage,
+      cssGate: gate
+    }
   });
 }
 
@@ -390,6 +449,8 @@ function getPublicState() {
     stageName: STAGES[state.stage]?.id || 'none',
     unlocked: [...state.unlocked],
     attestationCount: state.attestations.length,
+    cssGatesCompleted: [...state.cssGatesCompleted],
+    cssMediaCount: state.cssSignals?.mediaCount || 0,
     fingerprint: state.vector ? hashSync(Array.from(state.vector).slice(0, 8).join(',')) : null
   };
 }

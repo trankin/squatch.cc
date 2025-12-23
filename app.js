@@ -86,7 +86,15 @@ export function mount(container, state) {
         </div>
         <div class="row">
           <span class="label">Attestations</span>
-          <span class="value">${state.attestationCount || 1}</span>
+          <span class="value" id="attestation-count">${state.attestationCount || 1}</span>
+        </div>
+        <div class="row">
+          <span class="label">CSS Layer 0</span>
+          <span class="value" id="css-gates">${state.cssGatesCompleted?.length || 0}/5 gates</span>
+        </div>
+        <div class="row">
+          <span class="label">Media Signals</span>
+          <span class="value">${state.cssMediaCount || 0}/6 detected</span>
         </div>
         <div class="row">
           <span class="label">Unlocked</span>
@@ -153,6 +161,18 @@ function updateUI(state) {
     scoreEl.textContent = `${(state.organic * 100).toFixed(0)}%`;
   }
 
+  // Update attestation count
+  const attCountEl = document.getElementById('attestation-count');
+  if (attCountEl) {
+    attCountEl.textContent = state.attestationCount || 1;
+  }
+
+  // Update CSS gates count
+  const cssGatesEl = document.getElementById('css-gates');
+  if (cssGatesEl) {
+    cssGatesEl.textContent = `${state.cssGatesCompleted?.length || 0}/5 gates`;
+  }
+
   // Update stages
   const stagesEl = document.getElementById('stages');
   if (stagesEl) {
@@ -161,15 +181,25 @@ function updateUI(state) {
 
   // Add attestation to chain
   const attestList = document.querySelector('.attestation-list');
-  if (attestList && state.stageName) {
-    const existing = attestList.querySelectorAll('.attestation');
-    const lastType = existing[existing.length - 1]?.textContent.split(' @')[0];
-
-    if (lastType !== state.stageName) {
+  if (attestList) {
+    // Check for CSS gate completion
+    if (state.cssGate) {
       const att = document.createElement('div');
       att.className = 'attestation';
-      att.textContent = `${state.stageName} @ ${new Date().toLocaleTimeString()}`;
+      att.textContent = `css-${state.cssGate} @ ${new Date().toLocaleTimeString()}`;
       attestList.appendChild(att);
+    }
+    // Check for stage change
+    else if (state.stageName) {
+      const existing = attestList.querySelectorAll('.attestation');
+      const lastType = existing[existing.length - 1]?.textContent.split(' @')[0];
+
+      if (lastType !== state.stageName) {
+        const att = document.createElement('div');
+        att.className = 'attestation';
+        att.textContent = `${state.stageName} @ ${new Date().toLocaleTimeString()}`;
+        attestList.appendChild(att);
+      }
     }
   }
 }

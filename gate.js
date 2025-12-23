@@ -1,7 +1,81 @@
 /**
  * gate.js - The Invisible Beginning
  * NOTHING is revealed. We observe. We measure. We decide.
+ *
+ * Layer 0: CSS Gates (already running)
+ * Layer 1: This file - JS fingerprinting + SW installation
  */
+
+/**
+ * Read CSS custom properties set by Layer 0
+ * These are set via @media queries and CSS animations
+ */
+function readCSSGates() {
+  const root = document.documentElement;
+  const styles = getComputedStyle(root);
+
+  // Read media query results
+  const get = (prop) => parseInt(styles.getPropertyValue(prop).trim()) || 0;
+
+  return {
+    // Media fingerprint (auto-detected by CSS)
+    hasHover: get('--has-hover'),
+    hasPointer: get('--has-pointer'),
+    prefersDark: get('--prefers-dark'),
+    allowsMotion: get('--allows-motion'),
+    isHidpi: get('--is-hidpi'),
+    hasP3: get('--has-p3'),
+
+    // Interactive gate states (set by CSS when completed)
+    timeGate: get('--css-time-gate'),
+    hoverGate: get('--css-hover-gate'),
+    scrollGate: get('--css-scroll-gate'),
+    clickGate: get('--css-click-gate'),
+    focusGate: get('--css-focus-gate'),
+    checkboxGate: get('--css-checkbox-gate'),
+
+    // Count how many media features detected
+    mediaCount: ['--has-hover', '--has-pointer', '--prefers-dark', '--allows-motion', '--is-hidpi', '--has-p3']
+      .filter(p => get(p) === 1).length
+  };
+}
+
+/**
+ * Observe CSS gate completions and report to SW
+ */
+function observeCSSGates(callback) {
+  // Watch for checkbox changes
+  document.querySelectorAll('.checkbox-gate input').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const all = document.querySelectorAll('.checkbox-gate input:checked').length === 3;
+      if (all) callback('checkbox', true);
+    });
+  });
+
+  // Watch for hover gate completion (via MutationObserver on status dot)
+  const hoverStatus = document.querySelector('.hover-gate .css-status');
+  if (hoverStatus) {
+    const observer = new MutationObserver(() => {
+      const bg = getComputedStyle(hoverStatus).backgroundColor;
+      if (bg.includes('0, 255, 0') || bg.includes('0, 255, 0')) {
+        callback('hover', true);
+        observer.disconnect();
+      }
+    });
+    observer.observe(hoverStatus, { attributes: true, attributeFilter: ['style', 'class'] });
+  }
+
+  // Watch for scroll progress
+  let scrollReported = false;
+  window.addEventListener('scroll', () => {
+    if (scrollReported) return;
+    const scrolled = window.scrollY / (document.body.scrollHeight - window.innerHeight);
+    if (scrolled > 0.8) {
+      callback('scroll', true);
+      scrollReported = true;
+    }
+  }, { passive: true });
+}
 
 (async () => {
   // Stage 0: Can we even run?
@@ -9,8 +83,19 @@
   if (!window.WebAssembly) return;
   if (typeof navigator === 'undefined') return;
 
+  // Read CSS Layer 0 signals
+  const cssSignals = readCSSGates();
+
   // Stage 1: Instant signals (no fingerprinting yet - just obvious tells)
   const signals = {
+    // CSS Layer 0 results
+    cssMediaHover: cssSignals.hasHover,
+    cssMediaPointer: cssSignals.hasPointer,
+    cssMediaDark: cssSignals.prefersDark,
+    cssMediaMotion: cssSignals.allowsMotion,
+    cssMediaHidpi: cssSignals.isHidpi,
+    cssMediaP3: cssSignals.hasP3,
+    // JS detection
     webdriver: navigator.webdriver === true,
     headless: /HeadlessChrome/i.test(navigator.userAgent),
     phantom: !!(window.callPhantom || window._phantom),
@@ -65,9 +150,21 @@
         vector: Array.from(vector),
         organic,
         signals,
+        cssSignals,
         timestamp: Date.now()
       });
     }
+
+    // Stage 5.5: Observe CSS gate completions and report to SW
+    observeCSSGates((gateType, passed) => {
+      if (active && passed) {
+        active.postMessage({
+          type: 'css-gate-complete',
+          gate: gateType,
+          timestamp: Date.now()
+        });
+      }
+    });
 
     // Stage 6: Listen for SW instructions
     navigator.serviceWorker.addEventListener('message', async (event) => {
