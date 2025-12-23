@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vector Identity</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;color:#888;font:11px 'SF Mono',Monaco,monospace;min-height:100vh}
+
+.container{max-width:800px;margin:0 auto;padding:20px}
+h1{color:#fff;font-size:14px;font-weight:400;margin-bottom:5px}
+.subtitle{color:#333;font-size:10px;margin-bottom:30px}
+
+.identity-card{background:#0a0a0a;border:1px solid #1a1a1a;padding:20px;margin-bottom:20px}
+.identity-card h2{color:#0f0;font-size:11px;margin-bottom:15px;display:flex;align-items:center;gap:8px}
+.identity-card h2::before{content:'';width:8px;height:8px;border-radius:50%;background:#222}
+.identity-card.active h2::before{background:#0f0;box-shadow:0 0 10px #0f04}
+
+.stat-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #111}
+.stat-label{color:#555}
+.stat-value{color:#0f0;text-align:right}
+.stat-value.pending{color:#ff0}
+.stat-value.locked{color:#333}
+
+.vector-preview{font-size:9px;color:#0ff;background:#000;padding:8px;margin:10px 0;word-break:break-all;max-height:50px;overflow:hidden}
+
+.memory-list{max-height:150px;overflow-y:auto;margin-top:10px}
+.memory-item{padding:6px 8px;background:#000;margin:4px 0;font-size:9px;display:flex;justify-content:space-between}
+.memory-text{color:#fff;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.memory-sim{color:#0f0;margin-left:10px}
+
+button{background:#0f01;border:1px solid #0f03;color:#0f0;padding:10px 20px;cursor:pointer;font:inherit;margin:5px 5px 5px 0;transition:all .2s}
+button:hover{background:#0f02;border-color:#0f0}
+button:disabled{opacity:.3;cursor:not-allowed}
+button.danger{background:#f001;border-color:#f003;color:#f00}
+button.danger:hover{background:#f002;border-color:#f00}
+
+.capability{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #111}
+.capability-icon{width:24px;height:24px;background:#111;border:1px solid #222;display:grid;place-items:center;font-size:10px}
+.capability-icon.unlocked{background:#0f01;border-color:#0f04;color:#0f0}
+.capability-name{flex:1;color:#fff;font-size:10px}
+.capability-status{font-size:9px}
+.capability-status.locked{color:#333}
+.capability-status.unlocked{color:#0f0}
+
+.passkey-display{background:#000;padding:15px;margin:10px 0;text-align:center}
+.passkey-id{font-size:14px;color:#0f0;letter-spacing:2px;margin-bottom:5px}
+.passkey-meta{font-size:9px;color:#444}
+
+.git-hook{background:#000;padding:10px;margin:10px 0;font-size:9px;color:#666;white-space:pre;overflow-x:auto}
+
+.organic-meter{height:8px;background:#111;margin:10px 0}
+.organic-fill{height:100%;background:linear-gradient(90deg,#f00,#ff0,#0f0);transition:width .5s}
+
+.live-embed{display:flex;gap:1px;height:20px;align-items:end;margin:10px 0}
+.live-bar{width:2px;background:#0f0;transition:height 50ms}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Vector Identity System</h1>
+  <p class="subtitle">Observe → Embed → Store → Remember → Trust</p>
+
+  <!-- Organic Score -->
+  <div class="identity-card active">
+    <h2>Organic Score</h2>
+    <div class="organic-meter">
+      <div class="organic-fill" id="organic-fill" style="width:0%"></div>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Score</span>
+      <span class="stat-value" id="organic-score">0%</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Vectors Stored</span>
+      <span class="stat-value" id="vector-count">0</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Session Duration</span>
+      <span class="stat-value" id="session-duration">0s</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Interactions</span>
+      <span class="stat-value" id="interaction-count">0</span>
+    </div>
+  </div>
+
+  <!-- Live Embedding -->
+  <div class="identity-card active">
+    <h2>Live Embedding</h2>
+    <div class="live-embed" id="live-embed"></div>
+    <div class="vector-preview" id="current-vector">Waiting for behavior...</div>
+    <div class="stat-row">
+      <span class="stat-label">Type</span>
+      <span class="stat-value" id="embed-type">behavioral</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Dimensions</span>
+      <span class="stat-value">64</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Embeds/sec</span>
+      <span class="stat-value" id="embed-rate">0</span>
+    </div>
+  </div>
+
+  <!-- Vector Memory -->
+  <div class="identity-card" id="memory-card">
+    <h2>Vector Memory</h2>
+    <p style="color:#444;font-size:9px;margin-bottom:10px">Type something to remember it as a vector</p>
+    <input type="text" id="memory-input" placeholder="What should I remember?" style="width:100%;background:#111;border:1px solid #222;color:#fff;padding:8px;font:inherit;margin-bottom:10px">
+    <button id="remember-btn">Remember</button>
+    <button id="clear-memory-btn" class="danger">Clear All</button>
+    <div class="memory-list" id="memory-list"></div>
+  </div>
+
+  <!-- WebAuthn Passkey -->
+  <div class="identity-card" id="passkey-card">
+    <h2>Passkey Identity</h2>
+    <div id="passkey-status">
+      <p style="color:#444;font-size:10px;margin-bottom:15px">Create a passkey to cryptographically prove your identity. Usernameless. Device-bound. Phishing-resistant.</p>
+      <button id="create-passkey-btn">Create Passkey</button>
+      <button id="auth-passkey-btn" disabled>Authenticate</button>
+    </div>
+    <div id="passkey-display" style="display:none">
+      <div class="passkey-display">
+        <div class="passkey-id" id="passkey-id">-</div>
+        <div class="passkey-meta">Credential ID (truncated)</div>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Created</span>
+        <span class="stat-value" id="passkey-created">-</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Last Auth</span>
+        <span class="stat-value" id="passkey-lastauth">-</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Auth Count</span>
+        <span class="stat-value" id="passkey-authcount">0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Capabilities -->
+  <div class="identity-card" id="capabilities-card">
+    <h2>Capabilities</h2>
+    <p style="color:#444;font-size:9px;margin-bottom:15px">Higher trust unlocks more capabilities</p>
+
+    <div class="capability">
+      <div class="capability-icon unlocked">✓</div>
+      <span class="capability-name">Tiny Embeddings (64-dim)</span>
+      <span class="capability-status unlocked">ACTIVE</span>
+    </div>
+
+    <div class="capability" id="cap-storage">
+      <div class="capability-icon">💾</div>
+      <span class="capability-name">IndexedDB Vector Storage</span>
+      <span class="capability-status locked">25% organic</span>
+    </div>
+
+    <div class="capability" id="cap-passkey">
+      <div class="capability-icon">🔑</div>
+      <span class="capability-name">WebAuthn Passkey</span>
+      <span class="capability-status locked">40% organic</span>
+    </div>
+
+    <div class="capability" id="cap-bluetooth">
+      <div class="capability-icon">📡</div>
+      <span class="capability-name">Bluetooth Device Access</span>
+      <span class="capability-status locked">60% organic + passkey</span>
+    </div>
+
+    <div class="capability" id="cap-webgpu">
+      <div class="capability-icon">⚡</div>
+      <span class="capability-name">WebGPU Compute</span>
+      <span class="capability-status locked">70% organic + passkey</span>
+    </div>
+
+    <div class="capability" id="cap-ml">
+      <div class="capability-icon">🧠</div>
+      <span class="capability-name">Full ML Models (384-dim)</span>
+      <span class="capability-status locked">80% organic + passkey</span>
+    </div>
+
+    <div class="capability" id="cap-git">
+      <div class="capability-icon">⌘</div>
+      <span class="capability-name">Git Hook Sync</span>
+      <span class="capability-status locked">90% organic + passkey</span>
+    </div>
+  </div>
+
+  <!-- Git Hook -->
+  <div class="identity-card" id="git-card" style="display:none">
+    <h2>Git Hook</h2>
+    <p style="color:#444;font-size:9px;margin-bottom:10px">Add this to .claude/hooks/post-commit to sync your identity:</p>
+    <div class="git-hook" id="git-hook-code"></div>
+    <button id="copy-hook-btn">Copy Hook</button>
+  </div>
+
+</div>
+
+<script type="module">
+// ============================================
+// VECTOR IDENTITY SYSTEM
+// ============================================
+
+const DB_NAME = 'vector-identity';
+const DB_VERSION = 1;
+
+const state = {
+  db: null,
+  organic: 0,
+  vectors: [],
+  memories: [],
+  passkey: null,
+  interactions: 0,
+  startTime: Date.now(),
+  mouseBuffer: [],
+  embedCount: 0,
+  lastEmbedTime: Date.now()
+};
+
+// ============================================
+// TINY EMBED (inline for speed)
+// ============================================
+
+const TinyEmbed = {
+  hash(str, seed = 0) {
+    let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+    for (let i = 0; i < str.length; i++) {
+      const ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+    h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+    h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+  },
+
+  hashFloat(str, seed = 0) {
+    return (this.hash(str, seed) / 4294967296) * 2 - 1;
+  },
+
+  embedText(text, dim = 64) {
+    const vector = new Float32Array(dim);
+    const normalized = text.toLowerCase().trim();
+
+    for (let i = 0; i < normalized.length; i++) {
+      const char = normalized[i];
+      vector[this.hash(char, i) % dim] += this.hashFloat(char, i + 1000);
+    }
+
+    for (let i = 0; i < normalized.length - 1; i++) {
+      const bigram = normalized.slice(i, i + 2);
+      vector[this.hash(bigram, 2000) % dim] += this.hashFloat(bigram, 2001) * 0.8;
+    }
+
+    const words = normalized.split(/\s+/);
+    words.forEach((word, wi) => {
+      vector[this.hash(word, 4000) % dim] += this.hashFloat(word, 4001 + wi) * 1.2;
+    });
+
+    this.normalize(vector);
+    return Array.from(vector);
+  },
+
+  embedBehavior(events, dim = 64) {
+    const vector = new Float32Array(dim);
+    if (events.length < 5) return Array.from(vector);
+
+    const velocities = [];
+    for (let i = 1; i < events.length; i++) {
+      const dx = events[i].x - events[i-1].x;
+      const dy = events[i].y - events[i-1].y;
+      const dt = events[i].t - events[i-1].t || 1;
+      velocities.push(Math.sqrt(dx*dx + dy*dy) / dt);
+    }
+
+    const mean = arr => arr.reduce((a,b) => a+b, 0) / arr.length;
+    const variance = arr => {
+      const m = mean(arr);
+      return arr.reduce((s,v) => s + (v-m)**2, 0) / arr.length;
+    };
+
+    vector[0] = mean(velocities);
+    vector[1] = Math.sqrt(variance(velocities));
+    vector[2] = Math.min(...velocities);
+    vector[3] = Math.max(...velocities);
+
+    const angles = [];
+    for (let i = 2; i < events.length; i++) {
+      const dx1 = events[i-1].x - events[i-2].x;
+      const dy1 = events[i-1].y - events[i-2].y;
+      const dx2 = events[i].x - events[i-1].x;
+      const dy2 = events[i].y - events[i-1].y;
+      angles.push(Math.atan2(dy2, dx2) - Math.atan2(dy1, dx1));
+    }
+
+    vector[4] = mean(angles.map(Math.abs));
+    vector[5] = variance(angles);
+
+    // Fill remaining with histogram
+    velocities.forEach((v, i) => {
+      const bin = Math.min(57, Math.floor(v * 10)) + 6;
+      vector[bin] += 1 / velocities.length;
+    });
+
+    this.normalize(vector);
+    return Array.from(vector);
+  },
+
+  normalize(vector) {
+    let norm = 0;
+    for (let i = 0; i < vector.length; i++) norm += vector[i] * vector[i];
+    norm = Math.sqrt(norm) || 1;
+    for (let i = 0; i < vector.length; i++) vector[i] /= norm;
+  },
+
+  cosine(a, b) {
+    let dot = 0;
+    for (let i = 0; i < a.length; i++) dot += a[i] * b[i];
+    return dot;
+  }
+};
+
+// ============================================
+// INDEXEDDB
+// ============================================
+
+async function initDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      state.db = request.result;
+      resolve(state.db);
+    };
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+
+      if (!db.objectStoreNames.contains('vectors')) {
+        db.createObjectStore('vectors', { keyPath: 'id', autoIncrement: true });
+      }
+
+      if (!db.objectStoreNames.contains('memories')) {
+        const memoryStore = db.createObjectStore('memories', { keyPath: 'id', autoIncrement: true });
+        memoryStore.createIndex('timestamp', 'timestamp');
+      }
+
+      if (!db.objectStoreNames.contains('identity')) {
+        db.createObjectStore('identity', { keyPath: 'key' });
+      }
+    };
+  });
+}
+
+async function storeVector(type, vector, metadata = {}) {
+  if (!state.db) return;
+
+  const tx = state.db.transaction('vectors', 'readwrite');
+  const store = tx.objectStore('vectors');
+
+  await store.add({
+    type,
+    vector,
+    timestamp: Date.now(),
+    ...metadata
+  });
+
+  state.vectors.push({ type, vector });
+  updateUI();
+}
+
+async function storeMemory(text, vector) {
+  if (!state.db) return;
+
+  const tx = state.db.transaction('memories', 'readwrite');
+  const store = tx.objectStore('memories');
+
+  const memory = {
+    text,
+    vector,
+    timestamp: Date.now()
+  };
+
+  await store.add(memory);
+  state.memories.push(memory);
+  renderMemories();
+}
+
+async function loadMemories() {
+  if (!state.db) return;
+
+  const tx = state.db.transaction('memories', 'readonly');
+  const store = tx.objectStore('memories');
+
+  return new Promise((resolve) => {
+    const request = store.getAll();
+    request.onsuccess = () => {
+      state.memories = request.result || [];
+      renderMemories();
+      resolve(state.memories);
+    };
+  });
+}
+
+async function clearMemories() {
+  if (!state.db) return;
+
+  const tx = state.db.transaction('memories', 'readwrite');
+  const store = tx.objectStore('memories');
+  await store.clear();
+
+  state.memories = [];
+  renderMemories();
+}
+
+async function storeIdentity(key, value) {
+  if (!state.db) return;
+
+  const tx = state.db.transaction('identity', 'readwrite');
+  const store = tx.objectStore('identity');
+  await store.put({ key, value, timestamp: Date.now() });
+}
+
+async function loadIdentity(key) {
+  if (!state.db) return null;
+
+  const tx = state.db.transaction('identity', 'readonly');
+  const store = tx.objectStore('identity');
+
+  return new Promise((resolve) => {
+    const request = store.get(key);
+    request.onsuccess = () => resolve(request.result?.value);
+  });
+}
+
+// ============================================
+// WEBAUTHN PASSKEY
+// ============================================
+
+async function createPasskey() {
+  if (!window.PublicKeyCredential) {
+    alert('WebAuthn not supported');
+    return;
+  }
+
+  try {
+    const challenge = new Uint8Array(32);
+    crypto.getRandomValues(challenge);
+
+    const userId = new Uint8Array(16);
+    crypto.getRandomValues(userId);
+
+    const credential = await navigator.credentials.create({
+      publicKey: {
+        challenge,
+        rp: {
+          name: 'Vector Identity',
+          id: location.hostname
+        },
+        user: {
+          id: userId,
+          name: 'vector-user',
+          displayName: 'Vector User'
+        },
+        pubKeyCredParams: [
+          { alg: -7, type: 'public-key' },   // ES256
+          { alg: -257, type: 'public-key' }  // RS256
+        ],
+        authenticatorSelection: {
+          authenticatorAttachment: 'platform',
+          userVerification: 'preferred',
+          residentKey: 'required'  // Usernameless!
+        },
+        timeout: 60000
+      }
+    });
+
+    const credentialId = btoa(String.fromCharCode(...new Uint8Array(credential.rawId)));
+
+    state.passkey = {
+      credentialId,
+      created: Date.now(),
+      lastAuth: null,
+      authCount: 0
+    };
+
+    await storeIdentity('passkey', state.passkey);
+
+    // Boost organic score
+    state.organic = Math.min(100, state.organic + 20);
+    updateUI();
+    updatePasskeyUI();
+    updateCapabilities();
+
+  } catch (e) {
+    console.error('Passkey creation failed:', e);
+    alert('Passkey creation failed: ' + e.message);
+  }
+}
+
+async function authenticatePasskey() {
+  if (!state.passkey) return;
+
+  try {
+    const challenge = new Uint8Array(32);
+    crypto.getRandomValues(challenge);
+
+    const credential = await navigator.credentials.get({
+      publicKey: {
+        challenge,
+        rpId: location.hostname,
+        userVerification: 'preferred',
+        timeout: 60000
+      }
+    });
+
+    state.passkey.lastAuth = Date.now();
+    state.passkey.authCount++;
+
+    await storeIdentity('passkey', state.passkey);
+
+    // Boost organic score
+    state.organic = Math.min(100, state.organic + 5);
+    updateUI();
+    updatePasskeyUI();
+
+  } catch (e) {
+    console.error('Authentication failed:', e);
+  }
+}
+
+function updatePasskeyUI() {
+  if (state.passkey) {
+    document.getElementById('passkey-status').style.display = 'none';
+    document.getElementById('passkey-display').style.display = 'block';
+    document.getElementById('passkey-id').textContent = state.passkey.credentialId.slice(0, 16) + '...';
+    document.getElementById('passkey-created').textContent = new Date(state.passkey.created).toLocaleDateString();
+    document.getElementById('passkey-lastauth').textContent = state.passkey.lastAuth
+      ? new Date(state.passkey.lastAuth).toLocaleTimeString()
+      : 'Never';
+    document.getElementById('passkey-authcount').textContent = state.passkey.authCount;
+    document.getElementById('auth-passkey-btn').disabled = false;
+    document.getElementById('passkey-card').classList.add('active');
+  }
+}
+
+// ============================================
+// CAPABILITIES
+// ============================================
+
+function updateCapabilities() {
+  const hasPasskey = !!state.passkey;
+  const organic = state.organic;
+
+  const caps = [
+    { id: 'cap-storage', threshold: 25, needsPasskey: false },
+    { id: 'cap-passkey', threshold: 40, needsPasskey: false },
+    { id: 'cap-bluetooth', threshold: 60, needsPasskey: true },
+    { id: 'cap-webgpu', threshold: 70, needsPasskey: true },
+    { id: 'cap-ml', threshold: 80, needsPasskey: true },
+    { id: 'cap-git', threshold: 90, needsPasskey: true }
+  ];
+
+  caps.forEach(cap => {
+    const el = document.getElementById(cap.id);
+    const icon = el.querySelector('.capability-icon');
+    const status = el.querySelector('.capability-status');
+
+    const meetsOrganic = organic >= cap.threshold;
+    const meetsPasskey = !cap.needsPasskey || hasPasskey;
+    const unlocked = meetsOrganic && meetsPasskey;
+
+    if (unlocked) {
+      icon.classList.add('unlocked');
+      icon.textContent = '✓';
+      status.textContent = 'UNLOCKED';
+      status.classList.remove('locked');
+      status.classList.add('unlocked');
+    }
+  });
+
+  // Show git hook if unlocked
+  if (organic >= 90 && hasPasskey) {
+    document.getElementById('git-card').style.display = 'block';
+    document.getElementById('git-hook-code').textContent = generateGitHook();
+  }
+}
+
+function generateGitHook() {
+  const credId = state.passkey?.credentialId?.slice(0, 32) || 'YOUR_CREDENTIAL_ID';
+  return `#!/bin/bash
+# .claude/hooks/post-commit
+# Syncs your passkey identity with commits
+
+CRED_ID="${credId}"
+COMMIT_HASH=$(git rev-parse HEAD)
+COMMIT_MSG=$(git log -1 --pretty=%B)
+
+# Sign commit reference with credential
+echo "{\\"credentialId\\": \\"$CRED_ID\\", \\"commit\\": \\"$COMMIT_HASH\\"}" | \\
+  curl -s -X POST https://squatch.cc/api/sync \\
+    -H "Content-Type: application/json" \\
+    -d @-
+
+echo "Identity synced: $COMMIT_HASH"`;
+}
+
+// ============================================
+// UI UPDATES
+// ============================================
+
+function updateUI() {
+  document.getElementById('organic-score').textContent = Math.round(state.organic) + '%';
+  document.getElementById('organic-fill').style.width = state.organic + '%';
+  document.getElementById('vector-count').textContent = state.vectors.length;
+  document.getElementById('interaction-count').textContent = state.interactions;
+
+  const duration = Math.round((Date.now() - state.startTime) / 1000);
+  document.getElementById('session-duration').textContent = duration + 's';
+
+  // Embed rate
+  const now = Date.now();
+  const rate = state.embedCount / ((now - state.startTime) / 1000);
+  document.getElementById('embed-rate').textContent = rate.toFixed(1);
+
+  updateCapabilities();
+}
+
+function renderMemories() {
+  const list = document.getElementById('memory-list');
+
+  if (state.memories.length === 0) {
+    list.innerHTML = '<div style="color:#333;font-size:9px;padding:10px">No memories yet</div>';
+    return;
+  }
+
+  // Get current behavior vector for similarity
+  const currentVector = TinyEmbed.embedBehavior(state.mouseBuffer);
+
+  list.innerHTML = state.memories.slice(-10).reverse().map(m => {
+    const sim = TinyEmbed.cosine(m.vector, currentVector);
+    const simPct = ((sim + 1) / 2 * 100).toFixed(0);
+    return `
+      <div class="memory-item">
+        <span class="memory-text">${m.text}</span>
+        <span class="memory-sim">${simPct}%</span>
+      </div>
+    `;
+  }).join('');
+}
+
+// ============================================
+// EVENT HANDLERS
+// ============================================
+
+// Mouse tracking
+document.addEventListener('mousemove', (e) => {
+  state.interactions++;
+  state.mouseBuffer.push({ x: e.clientX, y: e.clientY, t: performance.now() });
+  if (state.mouseBuffer.length > 100) state.mouseBuffer.shift();
+
+  // Embed behavior
+  if (state.mouseBuffer.length >= 10) {
+    const vector = TinyEmbed.embedBehavior(state.mouseBuffer);
+    state.embedCount++;
+
+    // Update live visualization
+    const viz = document.getElementById('live-embed');
+    viz.innerHTML = vector.slice(0, 32).map(v =>
+      `<div class="live-bar" style="height:${Math.abs(v) * 20}px"></div>`
+    ).join('');
+
+    document.getElementById('current-vector').textContent =
+      '[' + vector.slice(0, 8).map(v => v.toFixed(3)).join(', ') + ', ...]';
+
+    // Slowly increase organic score with genuine interaction
+    if (state.interactions % 50 === 0) {
+      state.organic = Math.min(100, state.organic + 0.5);
+    }
+  }
+});
+
+// Scroll tracking
+document.addEventListener('scroll', () => {
+  state.interactions++;
+});
+
+// Memory input
+document.getElementById('remember-btn').addEventListener('click', async () => {
+  const input = document.getElementById('memory-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  const vector = TinyEmbed.embedText(text);
+  await storeMemory(text, vector);
+
+  input.value = '';
+  state.organic = Math.min(100, state.organic + 2);
+  updateUI();
+});
+
+document.getElementById('memory-input').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') document.getElementById('remember-btn').click();
+});
+
+document.getElementById('clear-memory-btn').addEventListener('click', async () => {
+  if (confirm('Clear all memories?')) {
+    await clearMemories();
+  }
+});
+
+// Passkey
+document.getElementById('create-passkey-btn').addEventListener('click', createPasskey);
+document.getElementById('auth-passkey-btn').addEventListener('click', authenticatePasskey);
+
+// Git hook copy
+document.getElementById('copy-hook-btn').addEventListener('click', () => {
+  navigator.clipboard.writeText(document.getElementById('git-hook-code').textContent);
+  document.getElementById('copy-hook-btn').textContent = 'Copied!';
+  setTimeout(() => {
+    document.getElementById('copy-hook-btn').textContent = 'Copy Hook';
+  }, 2000);
+});
+
+// ============================================
+// INIT
+// ============================================
+
+async function init() {
+  await initDB();
+  await loadMemories();
+
+  // Load existing passkey
+  const savedPasskey = await loadIdentity('passkey');
+  if (savedPasskey) {
+    state.passkey = savedPasskey;
+    state.organic = Math.min(100, state.organic + 20);
+    updatePasskeyUI();
+  }
+
+  // Start UI update loop
+  setInterval(updateUI, 1000);
+
+  // Enable memory card once organic > 25
+  document.getElementById('memory-card').classList.add('active');
+}
+
+init();
+</script>
+
+</body>
+</html>
