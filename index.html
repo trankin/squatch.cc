@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>squatch.cc</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'SF Mono',Monaco,monospace;background:#0a0a0a;color:#e0e0e0;min-height:100vh}
+    #gate{padding:40px 20px;max-width:600px;margin:0 auto}
+    .status{font-size:11px;color:#666;margin:4px 0}
+    .status.pass{color:#0f0}
+    .status.fail{color:#f00}
+    .status.warn{color:#ff0}
+    #app{display:none}
+    .loader{border:2px solid #333;border-top:2px solid #0f0;border-radius:50%;width:20px;height:20px;animation:spin 1s linear infinite;margin:20px auto}
+    @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+  <!-- Gate: Runs first, decides what to load -->
+  <div id="gate">
+    <div class="loader"></div>
+    <div id="status"></div>
+  </div>
+
+  <!-- App: Only loaded if gate passes -->
+  <div id="app"></div>
+
+  <script type="module">
+    // =========================================================================
+    // VECTOR GATE BOOTSTRAP
+    // Pure client-side. Attest but don't exclude. Control the unveiling.
+    // =========================================================================
+
+    const state = {
+      vector: new Float32Array(64),
+      gates: [],
+      organic: 0,
+      fingerprint: null,
+      start: performance.now()
+    };
+
+    const statusEl = document.getElementById('status');
+    const gateEl = document.getElementById('gate');
+    const appEl = document.getElementById('app');
+
+    function log(msg, type = 'info') {
+      const div = document.createElement('div');
+      div.className = 'status ' + type;
+      div.textContent = `[${(performance.now() - state.start).toFixed(0)}ms] ${msg}`;
+      statusEl.appendChild(div);
+      state.gates.push({ msg, type, time: performance.now() - state.start });
+    }
+
+    function addToVector(data, offset) {
+      const str = String(data);
+      for (let i = 0; i < 8 && offset + i < 64; i++) {
+        state.vector[offset + i] += (str.charCodeAt(i % str.length) || 0) / 255;
+      }
+    }
+
+    async function hash(str) {
+      const data = new TextEncoder().encode(str);
+      const buf = await crypto.subtle.digest('SHA-256', data);
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // =========================================================================
+    // GATE CHECKS
+    // =========================================================================
+
+    async function runGates() {
+      // 1. Automation detection
+      const auto = {
+        webdriver: navigator.webdriver,
+        phantom: window._phantom || window.callPhantom,
+        selenium: document.__selenium_unwrapped,
+        nightmare: window.__nightmare
+      };
+      const autoDetected = Object.values(auto).some(v => v);
+      log(`Automation: ${autoDetected ? 'DETECTED' : 'clean'}`, autoDetected ? 'warn' : 'pass');
+      addToVector(JSON.stringify(auto), 0);
+
+      // 2. Canvas integrity
+      let canvasOk = false;
+      try {
+        const c = document.createElement('canvas');
+        c.width = 200; c.height = 50;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#f60';
+        ctx.fillRect(0, 0, 200, 50);
+        ctx.fillStyle = '#069';
+        ctx.font = '14px Arial';
+        ctx.fillText('squatch.cc', 10, 30);
+        const h1 = await hash(c.toDataURL());
+        ctx.clearRect(0, 0, 200, 50);
+        ctx.fillStyle = '#f60';
+        ctx.fillRect(0, 0, 200, 50);
+        ctx.fillStyle = '#069';
+        ctx.fillText('squatch.cc', 10, 30);
+        const h2 = await hash(c.toDataURL());
+        canvasOk = h1 === h2;
+        log(`Canvas: ${canvasOk ? 'consistent' : 'inconsistent'}`, canvasOk ? 'pass' : 'fail');
+        addToVector(h1, 8);
+      } catch (e) {
+        log(`Canvas: blocked`, 'warn');
+      }
+
+      // 3. WebGL
+      let webglOk = false;
+      try {
+        const gl = document.createElement('canvas').getContext('webgl');
+        const dbg = gl?.getExtension('WEBGL_debug_renderer_info');
+        const renderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : 'unknown';
+        const suspicious = ['swiftshader', 'llvmpipe', 'virtualbox'].some(s => renderer.toLowerCase().includes(s));
+        webglOk = !suspicious && renderer !== 'unknown';
+        log(`WebGL: ${renderer.slice(0, 40)}`, webglOk ? 'pass' : 'warn');
+        addToVector(renderer, 16);
+      } catch (e) {
+        log(`WebGL: unavailable`, 'warn');
+      }
+
+      // 4. Screen metrics
+      const screen = {
+        w: window.screen.width,
+        h: window.screen.height,
+        dpr: window.devicePixelRatio,
+        depth: window.screen.colorDepth
+      };
+      const screenOk = screen.w > 0 && screen.h > 0 && screen.dpr > 0;
+      log(`Screen: ${screen.w}x${screen.h} @${screen.dpr}x`, screenOk ? 'pass' : 'fail');
+      addToVector(JSON.stringify(screen), 24);
+
+      // 5. Timing variance
+      const timings = [];
+      for (let i = 0; i < 10; i++) {
+        const s = performance.now();
+        let x = 0; for (let j = 0; j < 5000; j++) x += Math.random();
+        timings.push(performance.now() - s);
+      }
+      const mean = timings.reduce((a, b) => a + b) / timings.length;
+      const std = Math.sqrt(timings.reduce((s, t) => s + (t - mean) ** 2, 0) / timings.length);
+      const cv = (std / mean) * 100;
+      const timingOk = cv > 1 && cv < 100;
+      log(`Timing CV: ${cv.toFixed(1)}%`, timingOk ? 'pass' : 'warn');
+      addToVector(cv.toFixed(4), 32);
+
+      // 6. Storage APIs
+      let storageCount = 0;
+      try { localStorage.setItem('_t', '1'); localStorage.removeItem('_t'); storageCount++; } catch (e) {}
+      try { sessionStorage.setItem('_t', '1'); sessionStorage.removeItem('_t'); storageCount++; } catch (e) {}
+      if (window.indexedDB) storageCount++;
+      if (navigator.cookieEnabled) storageCount++;
+      log(`Storage: ${storageCount}/4 APIs`, storageCount >= 2 ? 'pass' : 'warn');
+      addToVector(storageCount.toString(), 40);
+
+      // 7. Browser features
+      const features = {
+        cores: navigator.hardwareConcurrency || 0,
+        memory: navigator.deviceMemory || 0,
+        touch: navigator.maxTouchPoints || 0,
+        lang: navigator.language
+      };
+      log(`Features: ${features.cores} cores, ${features.memory}GB, ${features.lang}`, 'pass');
+      addToVector(JSON.stringify(features), 48);
+
+      // 8. Final fingerprint
+      let norm = 0;
+      for (let i = 0; i < 64; i++) norm += state.vector[i] ** 2;
+      norm = Math.sqrt(norm) + 1e-8;
+      for (let i = 0; i < 64; i++) state.vector[i] /= norm;
+
+      state.fingerprint = await hash(state.vector.toString());
+      log(`Fingerprint: ${state.fingerprint.slice(0, 16)}...`, 'pass');
+
+      // Calculate organic score
+      const passed = state.gates.filter(g => g.type === 'pass').length;
+      const total = state.gates.length;
+      state.organic = passed / total;
+      log(`Organic: ${(state.organic * 100).toFixed(0)}%`, state.organic >= 0.7 ? 'pass' : 'warn');
+
+      return state;
+    }
+
+    // =========================================================================
+    // CONDITIONAL LOADING
+    // =========================================================================
+
+    async function loadApp() {
+      log('Loading application...', 'info');
+
+      // Store attestation
+      sessionStorage.setItem('squatch_attestation', JSON.stringify({
+        fingerprint: state.fingerprint,
+        organic: state.organic,
+        gates: state.gates.length,
+        passed: state.gates.filter(g => g.type === 'pass').length,
+        timestamp: Date.now()
+      }));
+
+      // Hide gate, show app
+      gateEl.querySelector('.loader').style.display = 'none';
+
+      // Dynamically import the main app
+      try {
+        const { mount } = await import('./app.js');
+        appEl.style.display = 'block';
+        mount(appEl, state);
+        log('Application mounted', 'pass');
+      } catch (e) {
+        log(`App load failed: ${e.message}`, 'fail');
+        // Fallback: render basic content
+        appEl.style.display = 'block';
+        appEl.innerHTML = `
+          <div style="padding:40px;max-width:800px;margin:0 auto">
+            <h1 style="color:#fff;font-size:24px;margin-bottom:20px">squatch.cc</h1>
+            <p style="color:#888;margin-bottom:20px">Vector Fabric — Decentralized reasoning</p>
+            <div style="background:#111;border:1px solid #333;padding:20px;font-size:11px">
+              <div>Fingerprint: ${state.fingerprint}</div>
+              <div>Organic: ${(state.organic * 100).toFixed(0)}%</div>
+              <div>Gates: ${state.gates.filter(g => g.type === 'pass').length}/${state.gates.length} passed</div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    // =========================================================================
+    // BOOTSTRAP
+    // =========================================================================
+
+    async function bootstrap() {
+      log('Vector gate initializing...', 'info');
+
+      await runGates();
+
+      // Always load app - we attest but don't exclude
+      await loadApp();
+    }
+
+    bootstrap().catch(e => log(`Fatal: ${e.message}`, 'fail'));
+  </script>
+</body>
+</html>
